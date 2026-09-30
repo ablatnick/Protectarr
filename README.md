@@ -108,7 +108,7 @@ The Indexers page works without Prowlarr too: the indexer comes from the *arr ap
 `http://your-server:9797`, protected by `PROTECTARR_API_KEY` (log in with any username and that password).
 
 - **Activity:** every check, with the reasons and the indexer.
-  <img width="2551" height="1321" alt="Screenshot From 2026-09-30 19-07-30" src="https://github.com/user-attachments/assets/9b873af1-2255-4a00-8e0a-28719c6105dc" />
+  <img width="1102" height="1319" alt="Screenshot From 2026-09-30 19-07-30" src="https://github.com/user-attachments/assets/db3450ca-ec87-44fb-8516-c24fc6d352b4" />
 - **Review:** held downloads waiting for Allow or Deny.
   <img width="2551" height="1321" alt="Screenshot From 2026-09-30 19-07-43" src="https://github.com/user-attachments/assets/16d068a4-7c66-4dda-9842-fe6f7c2acb91" />
 - **Quarantine:** blocked files, which you can restore or delete.
