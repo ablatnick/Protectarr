@@ -23,6 +23,7 @@ from .clamav import ClamdClient
 from .config import ARR_KINDS, Config, apply_connections, connections_of, merge_connections
 from .db import Store
 from .guard import Guard
+from .login import Logins
 from .notify import Notifier
 from .qbit import QbitClient
 from .quarantine import Quarantine
@@ -89,18 +90,39 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
 
     app = FastAPI(title="Protectarr", version=__version__, lifespan=lifespan)
     app.state.guard = guard
+    logins = Logins(guard.store)
+    if cfg.reset_login and logins.active:
+        logins.reset()
+        log.warning("PROTECTARR_RESET_LOGIN is set: the saved username and password were removed. Log in with "
+                    "PROTECTARR_API_KEY (or without a password if it isn't set), then remove the variable.")
+
+    def _basic(request: Request) -> tuple[str, str] | None:
+        auth = request.headers.get("authorization", "")
+        if not auth.lower().startswith("basic "):
+            return None
+        try:
+            user, _, password = base64.b64decode(auth[6:]).decode().partition(":")
+            return user, password
+        except Exception:
+            return "", ""
 
     def _authorized(request: Request) -> bool:
-        if not cfg.api_key:
+        login = logins.active
+        if not cfg.api_key and not login:
             return True
+        # The API key: qBittorrent hooks and scripts (?key= or X-Api-Key). Once you've set your own login, it
+        # only opens the JSON API and hooks, not the pages.
         key = request.query_params.get("key") or request.headers.get("x-api-key") or ""
-        auth = request.headers.get("authorization", "")
-        if auth.lower().startswith("basic "):
-            try:
-                key = base64.b64decode(auth[6:]).decode().split(":", 1)[1]
-            except Exception:
-                pass
-        return hmac.compare_digest(key.encode(), cfg.api_key.encode())
+        hook_key = logins.hook_key(cfg.api_key)
+        if key and hook_key and hmac.compare_digest(key.encode(), hook_key.encode()) \
+                and (not login or request.url.path.startswith("/api/")):
+            return True
+        creds = _basic(request)
+        if creds is None:
+            return False
+        if login:
+            return logins.check(*creds)
+        return bool(cfg.api_key) and hmac.compare_digest(creds[1].encode(), cfg.api_key.encode())
 
     def _same_origin(request: Request) -> bool:
         # Browsers resend Basic credentials on cross-site form posts, so a page elsewhere could press
@@ -116,7 +138,13 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
 
     @app.middleware("http")
     async def guard_requests(request: Request, call_next):
+        address = request.client.host if request.client else ""
         if request.url.path != "/health" and not _authorized(request):
+            if _basic(request) is not None:  # a wrong password, not just the browser asking
+                if logins.blocked(address):
+                    return JSONResponse({"detail": "too many failed logins; try again in a few minutes"},
+                                        status_code=429)
+                logins.failed(address)
             return JSONResponse({"detail": "unauthorized"}, status_code=401,
                                 headers={"WWW-Authenticate": 'Basic realm="Protectarr"'})
         if request.method == "POST" and not _same_origin(request):
@@ -214,11 +242,36 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         return guard.store.indexer_stats()
 
     @app.get("/settings", response_class=HTMLResponse)
-    async def settings_page(request: Request, saved: int = 0, error: str = ""):
+    async def settings_page(request: Request, saved: int = 0, error: str = "", login_error: str = "",
+                            login_saved: int = 0):
         status = await run_checks(guard)
+        login = logins.get()
         return page(request, "settings.html", status=status, by_name={x["name"]: x for x in status["services"]},
                     conn=connections_of(guard.cfg), kinds=list(ARR_KINDS), hook_base=_hook_base(request),
-                    saved=saved, error=error)
+                    saved=saved, error=error, login_error=login_error, login_saved=login_saved, login_user=(login or {}).get("username", ""),
+                    protected=bool(cfg.api_key or login), env_key=bool(cfg.api_key),
+                    # A generated key is shown so it can be put in the hooks; PROTECTARR_API_KEY never is.
+                    generated_key="" if cfg.api_key else logins.hook_key(""))
+
+    @app.post("/settings/login")
+    async def settings_login(request: Request):
+        form = {k: v[-1] for k, v in parse_qs((await request.body()).decode(), keep_blank_values=True).items()}
+        current, login = form.get("current_password", ""), logins.get()
+        if login:
+            ok = logins.check(login["username"], current)
+        else:
+            ok = not cfg.api_key or hmac.compare_digest(current.encode(), cfg.api_key.encode())
+        try:
+            if not ok:
+                raise ValueError("the current password is wrong")
+            if form.get("new_password", "") != form.get("confirm_password", ""):
+                raise ValueError("the new passwords don't match")
+            logins.set(form.get("username", ""), form.get("new_password", ""))
+        except ValueError as exc:
+            return RedirectResponse(f"/settings?login_error={_quote(str(exc))}#login", status_code=303)
+        log.info("the web UI login was changed")
+        # The browser's saved login is now wrong, so it asks for the new one.
+        return RedirectResponse("/settings?login_saved=1#login", status_code=303)
 
     @app.post("/settings")
     async def settings_save(request: Request):

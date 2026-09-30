@@ -113,8 +113,11 @@ class Config:
     port: int = 9797
     # Address of the web UI as you open it, used for links in notifications.
     public_url: str = ""
-    # When set, the web UI asks for it (HTTP Basic, any username) and hooks must pass ?key=.
+    # When set, the web UI asks for it (HTTP Basic, any username) and hooks must pass ?key=. After you set your
+    # own username and password on the Settings page, it only opens /api/ (hooks and scripts).
     api_key: str = ""
+    # Forget the username and password set on the Settings page (for when you're locked out).
+    reset_login: bool = False
     # Where the settings came from, shown on the Connections page.
     source: str = "defaults"
 
@@ -158,7 +161,7 @@ def from_dict(raw: dict) -> Config:
         path_mappings=[PathMapping(**m) for m in raw.get("path_mappings", [])],
     )
     for key in ("quarantine_dir", "data_dir", "poll_seconds", "apprise_urls", "port", "api_key", "public_url",
-                "early_checks"):
+                "early_checks", "reset_login"):
         if key in raw:
             setattr(cfg, key, raw[key])
     if "actions" in raw:
@@ -266,6 +269,7 @@ def from_env(env: dict[str, str] | None = None) -> Config:
     cfg.port = int(g("PORT", str(cfg.port)))
     cfg.public_url = g("PUBLIC_URL")
     cfg.api_key = g("PROTECTARR_API_KEY")
+    cfg.reset_login = _bool(env.get("PROTECTARR_RESET_LOGIN", ""))
     _validate(cfg)
     return cfg
 

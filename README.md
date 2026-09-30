@@ -105,7 +105,7 @@ The Indexers page works without Prowlarr too: the indexer comes from the *arr ap
 
 ## Web UI
 
-`http://your-server:9797`, protected by `PROTECTARR_API_KEY` (log in with any username and that password).
+`http://your-server:9797`, protected by `PROTECTARR_API_KEY` (log in with any username and that password). After the first login you can set your own username and password under Settings > Login; from then on the API key only works for qBittorrent hooks and the JSON API, not the pages. Without `PROTECTARR_API_KEY`, setting a login protects the page and generates a key for the hooks, shown on the Settings page. Locked out? Set `PROTECTARR_RESET_LOGIN=true`, restart, log in with the API key, and remove the variable again. Repeated wrong passwords make an address wait a few minutes.
 
 - **Activity:** every check, with the reasons and the indexer.
   <img width="1102" height="1319" alt="Screenshot From 2026-09-30 19-07-30" src="https://github.com/user-attachments/assets/db3450ca-ec87-44fb-8516-c24fc6d352b4" />
@@ -145,7 +145,8 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `ALLOW_ARCHIVES` | `false` | Set `true` if you use Unpackerr for scene RAR releases. Archives are still checked for passwords and programs |
 | `EXTRA_BLOCKED_EXTENSIONS` | empty | e.g. `.iso,.torrent` |
 | `PATH_MAPPINGS` | empty | `qbit-path:protectarr-path`, comma-separated |
-| `PROTECTARR_API_KEY` | empty | Web UI password; also required as `?key=` on hooks |
+| `PROTECTARR_API_KEY` | empty | Web UI password until you set your own login on the Settings page; also required as `?key=` on hooks |
+| `PROTECTARR_RESET_LOGIN` | `false` | Forget the login set on the Settings page (when you're locked out) |
 | `PUBLIC_URL` | empty | How you open the UI, for links in notifications |
 | `APPRISE_URLS` | empty | Space-separated Apprise URLs |
 | `POLL_SECONDS` | `5` | How often qBittorrent is checked |

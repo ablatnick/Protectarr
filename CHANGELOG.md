@@ -2,7 +2,9 @@
 
 ## 0.4.0
 
-Fixes from a stress test of every way a bad file could get through.
+- **Your own login:** after the first login (with `PROTECTARR_API_KEY`), set a username and password under Settings > Login. The password is stored as a salted PBKDF2 hash; the API key then only opens hooks and the JSON API. Without an API key, a login protects the page and a hook key is generated. `PROTECTARR_RESET_LOGIN=true` clears it if you're locked out, and repeated wrong passwords are slowed down.
+
+Fixes from a stress test of every way a bad file could get through:
 
 - **Nothing unchecked passes as clean any more.**
   - Downloaded files that can't be found (wrong path mapping or mount) used to be skipped and the download marked clean. Now it's held, with a hint to fix `PATH_MAPPINGS`, and the Settings page warns when qBittorrent's download folder isn't visible.

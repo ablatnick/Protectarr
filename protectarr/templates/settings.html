@@ -77,10 +77,27 @@
 </table></div>
 
 <h2>Instant hooks (optional)</h2>
-<p class="muted">In qBittorrent, Options &gt; Downloads &gt; Run external program. Use the address qBittorrent can reach Protectarr on, and add <code>&amp;key=YOUR_PASSWORD</code> if the UI has a password.</p>
+{% set key = "&key=" ~ (generated_key if generated_key else "YOUR_API_KEY") if protected else "" %}
+<p class="muted">In qBittorrent, Options &gt; Downloads &gt; Run external program. Use the address qBittorrent can reach Protectarr on.{% if env_key %} Replace <code>YOUR_API_KEY</code> with <code>PROTECTARR_API_KEY</code> from the container settings.{% elif generated_key %} The key below was generated for hooks and scripts; it can't open these pages.{% endif %}</p>
 <div class="hooks">
-  <div><span class="muted">Run on torrent added</span><code>curl -fsS "{{ hook_base }}/api/hook/added?hash=%I"</code></div>
-  <div><span class="muted">Run on torrent finished</span><code>curl -fsS "{{ hook_base }}/api/hook/finished?hash=%I"</code></div>
+  <div><span class="muted">Run on torrent added</span><code>curl -fsS "{{ hook_base }}/api/hook/added?hash=%I{{ key }}"</code></div>
+  <div><span class="muted">Run on torrent finished</span><code>curl -fsS "{{ hook_base }}/api/hook/finished?hash=%I{{ key }}"</code></div>
 </div>
+
+<h2 id="login">Login</h2>
+{% if login_saved %}<div class="flash ok">Login saved.</div>{% endif %}
+{% if login_error %}<div class="flash bad">Login not changed: {{ login_error }}</div>{% endif %}
+<p class="muted">{% if login_user %}You log in as <b>{{ login_user }}</b>.{% elif env_key %}You log in with any username and <code>PROTECTARR_API_KEY</code>. Set your own username and password here; after that the API key only works for hooks and scripts.{% else %}This page has no password yet. Set a username and password to protect it.{% endif %} Your browser will ask for the new login after you save. Locked out? Set <code>PROTECTARR_RESET_LOGIN=true</code> on the container, restart it, log in with the API key, then remove the variable.</p>
+<form method="post" action="/settings/login" autocomplete="off">
+<fieldset><legend>{{ "Change login" if login_user else "Set a login" }}</legend>
+  <div class="row">
+    {% if protected %}<label>Current password<input type="password" name="current_password" required autocomplete="current-password"></label>{% endif %}
+    <label>Username<input name="username" value="{{ login_user }}" required maxlength="64" autocomplete="username"></label>
+    <label>New password<input type="password" name="new_password" required minlength="8" autocomplete="new-password"></label>
+    <label>Repeat it<input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></label>
+  </div>
+  <p style="margin-bottom:0"><button class="primary" type="submit">Save login</button></p>
+</fieldset>
+</form>
 <p class="muted">Settings from {{ status.config_source }}, plus anything saved on this page.</p>
 {% endblock %}
