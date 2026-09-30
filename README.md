@@ -1,4 +1,4 @@
-<img width="900" height="900" alt="ChatGPT Image Sep 30, 2026, 03_36_28 PM" src="https://github.com/user-attachments/assets/a87db8a0-497c-48fd-b87e-9ff9f1521b6b" />
+<img width="750" height="750" alt="ChatGPT Image Sep 30, 2026, 03_36_28 PM" src="https://github.com/user-attachments/assets/a87db8a0-497c-48fd-b87e-9ff9f1521b6b" />
 
 # Protectarr
 
