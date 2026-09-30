@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block body %}
+{% if error %}<div class="flash bad">{{ error }}</div>{% endif %}
+<p class="muted">Files here were moved out of your downloads and made read-only. Restoring puts them back where they were and lifts the block on that torrent; the app that grabbed it has already blocklisted the release, so use its Manual Import if you restore it.</p>
+<div class="wrap"><table class="stack">
+  <tr><th>When</th><th>Release</th><th>Verdict</th><th>Files</th><th></th></tr>
+  {% for it in items %}
+  <tr>
+    <td class="muted when">{{ it.ts | ago }}</td>
+    <td class="name">{{ it.name }}<div class="muted">{{ it.summary }}</div></td>
+    <td class="lvl {{ it.level }}">{{ it.level }}</td>
+    <td class="muted">{{ it.record.files | length }}</td>
+    <td style="white-space:nowrap">
+      <form method="post" action="/quarantine/{{ it.id }}/restore" onsubmit="return confirm('Restore these files to the download folder?')"><button>Restore</button></form>
+      <form method="post" action="/quarantine/{{ it.id }}/delete" onsubmit="return confirm('Delete these files permanently?')"><button class="danger">Delete</button></form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="muted">Quarantine is empty.</td></tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

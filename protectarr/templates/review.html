@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block body %}
+{% if error %}<div class="flash bad">{{ error }}</div>{% endif %}
+<p class="muted">These downloads looked suspicious, so Protectarr stopped them and locked away any downloaded files. <b>Allow</b> puts the files back and lets the download continue so Sonarr, Radarr or Lidarr can import it. <b>Deny</b> deletes it and has the app that grabbed it blocklist the release and look for another.</p>
+<div class="wrap"><table class="stack">
+  <tr><th>When</th><th>Release</th><th>Stage</th><th>Why</th><th></th></tr>
+  {% for d in items %}
+  <tr>
+    <td class="muted when">{{ d.ts | ago }}</td>
+    <td class="name">{{ d.name }}{% if d.indexer %}<div class="muted">from {{ d.indexer }}</div>{% endif %}</td>
+    <td>{{ "before download" if d.stage == "metadata" else "after download" }}</td>
+    <td>{% set shown = d.findings | rejectattr("level", "equalto", "clean") | list %}
+      <ul class="f">{% for f in shown[:6] %}<li class="{{ f.level }}">{{ f.message }}</li>{% endfor %}</ul></td>
+    <td style="white-space:nowrap">
+      <form method="post" action="/review/{{ d.id }}/allow" onsubmit="return confirm('Allow this download?')"><button class="primary">Allow</button></form>
+      <form method="post" action="/review/{{ d.id }}/deny"><button class="danger">Deny</button></form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="muted">Nothing is waiting for you.</td></tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

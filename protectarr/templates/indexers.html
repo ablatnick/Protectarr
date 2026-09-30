@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block body %}
+<p class="muted">Releases Protectarr blocked, or you denied, grouped by the indexer the *arr app got them from. An indexer that keeps showing up here is worth disabling{% if prowlarr_url %} in <a href="{{ prowlarr_url }}/indexers" target="_blank" rel="noopener">Prowlarr</a>{% else %} in Prowlarr{% endif %}.</p>
+<div class="wrap"><table class="stack">
+  <tr><th>Indexer</th><th>Bad releases</th><th>Last one</th></tr>
+  {% for s in stats %}
+  <tr><td><b>{{ s.indexer }}</b></td><td class="lvl {{ 'malicious' if s.bad > 2 else 'suspicious' }}">{{ s.bad }}</td><td class="muted">{{ s.last | ago }}</td></tr>
+  {% else %}
+  <tr><td colspan="3" class="muted">No bad releases traced to an indexer yet. The indexer is known when Sonarr, Radarr, Lidarr or Readarr grabbed the release.</td></tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

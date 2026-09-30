@@ -1,0 +1,57 @@
+# End-to-end test stack: a fresh qBittorrent + Sonarr + Lidarr + Prowlarr + ClamAV with Protectarr built
+# from this checkout, each as its own container. run.py seeds the config folders, starts it, enters every
+# service on Protectarr's Settings page and runs scenarios.
+name: protectarr-e2e
+
+x-user: &ids
+  PUID: "${E2E_UID:-1000}"
+  PGID: "${E2E_GID:-1000}"
+  TZ: Etc/UTC
+
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    environment: { <<: *ids, WEBUI_PORT: "8080" }
+    volumes:
+      - ./work/qbittorrent:/config
+      - ./work/downloads:/downloads
+    ports: ["127.0.0.1:18080:8080"]
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    environment: *ids
+    volumes: ["./work/sonarr:/config", "./work/downloads:/downloads"]
+    ports: ["127.0.0.1:18989:8989"]
+
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    environment: *ids
+    volumes: ["./work/lidarr:/config", "./work/downloads:/downloads"]
+    ports: ["127.0.0.1:18686:8686"]
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    environment: *ids
+    volumes: ["./work/prowlarr:/config"]
+    ports: ["127.0.0.1:19696:9696"]
+
+  clamav:
+    image: clamav/clamav:stable
+    volumes: ["clamav-db:/var/lib/clamav"]   # named volume: signatures survive between runs
+
+  protectarr:
+    build: ..
+    user: "${E2E_UID:-1000}:${E2E_GID:-1000}"
+    environment:
+      # Everything else is entered through the Settings page by run.py, as a user would.
+      PROTECTARR_API_KEY: e2e-ui-key
+      POLL_SECONDS: "2"
+    volumes:
+      - ./work/protectarr:/config
+      - ./work/quarantine:/quarantine
+      - ./work/downloads:/downloads
+    ports: ["127.0.0.1:19797:9797"]
+    depends_on: [qbittorrent, sonarr, lidarr, prowlarr, clamav]
+
+volumes:
+  clamav-db:

@@ -1,0 +1,75 @@
+# Optional. Protectarr can be set up with environment variables alone (see docker-compose.yml).
+# To use a file instead, copy this to ./protectarr/config/config.yml. When the file exists, environment
+# variables are ignored except where you reference them as ${VAR}.
+
+qbittorrent:
+  url: http://qbittorrent:8080
+  username: admin
+  password: ${QBIT_PASSWORD}
+  # Leave empty to check the categories your *arr apps use (read from their download client settings).
+  categories: []
+  # If qBittorrent's "Torrent stop condition" is "Metadata received", Protectarr starts each torrent
+  # once its file list passes. Nothing downloads before it's checked.
+  resume_after_metadata_check: true
+
+# kind: sonarr | radarr | lidarr | readarr | whisparr. Add as many as you run (e.g. a second Radarr for 4K).
+arr:
+  - name: Sonarr
+    kind: sonarr
+    url: http://sonarr:8989
+    api_key: ${SONARR_API_KEY}
+  - name: Radarr
+    kind: radarr
+    url: http://radarr:7878
+    api_key: ${RADARR_API_KEY}
+  # - name: Lidarr
+  #   kind: lidarr
+  #   url: http://lidarr:8686
+  #   api_key: ${LIDARR_API_KEY}
+
+# Optional: shows which indexers send bad releases, with a link to Prowlarr.
+prowlarr:
+  url: ""
+  api_key: ""
+
+clamav:
+  enabled: true
+  host: clamav
+  port: 3310
+  stream_max_mb: 25   # up to clamd's StreamMaxLength (25 MB by default)
+
+rules:
+  min_video_mb: 30               # an episode smaller than this is treated as fake
+  min_movie_mb: 300              # a movie (Radarr category) smaller than this is treated as fake
+  category_min_video_mb: {}      # per-category override, e.g. {tv-anime: 15}
+  # What a category holds when no *arr app says so: tv | movie | music | book
+  category_profiles: {}
+  allow_archives: false          # set true if you run Unpackerr for scene RAR releases
+  extra_blocked_extensions: []
+
+# What to do per verdict:
+#   block: quarantine files, remove the download, blocklist it in the *arr app, notify you
+#   hold:  stop it, lock away any files, notify you, and wait for Allow/Deny on the Review page
+#   alert: only tag it and notify you
+actions:
+  malicious: block
+  suspicious: hold
+
+# Map paths as qBittorrent sees them to paths inside the Protectarr container.
+# Not needed if both containers mount the downloads folder at the same path.
+path_mappings: []
+#  - remote: /downloads
+#    local: /data/downloads
+
+quarantine_dir: /quarantine
+data_dir: /config
+poll_seconds: 5
+
+# Any Apprise URL: discord://..., tgram://..., ntfy://..., mailto://...
+apprise_urls: []
+
+# How you open the web UI, used for "Review" links in notifications.
+public_url: http://your-server:9797
+
+# The web UI password (HTTP Basic, any username); hooks pass it as ?key=.
+api_key: ${PROTECTARR_API_KEY}

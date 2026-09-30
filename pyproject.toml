@@ -1,0 +1,34 @@
+[project]
+name = "protectarr"
+version = "0.2.0"
+description = "Blocks fake and malicious torrent releases before they reach your media library."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "httpx>=0.27",
+    "jinja2>=3.1",
+    "pyyaml>=6.0",
+    "rarfile>=4.1",
+    "py7zr>=0.21",
+    "apprise>=1.7",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+protectarr = "protectarr.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["protectarr*"]
+
+[tool.setuptools.package-data]
+protectarr = ["templates/*.html"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

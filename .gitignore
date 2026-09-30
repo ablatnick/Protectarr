@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+# local runtime data
+/protectarr/config/
+/protectarr/quarantine/
+/clamav/
+/config.yml
+e2e/work/

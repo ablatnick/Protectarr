@@ -1,0 +1,409 @@
+"""The pipeline: watch qBittorrent, run each stage once per torrent, and act on verdicts."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import posixpath
+import time
+
+import httpx
+
+from .arr import ArrClient, blocklist_everywhere, find_owner
+from .config import Config
+from .db import Store
+from .findings import Level, Verdict
+from .notify import Notifier
+from .qbit import STOPPED_STATES, QbitClient, has_metadata, is_complete
+from .quarantine import Quarantine
+from .rules import TorrentFile, check_metadata
+from .scanner import Scanner
+
+log = logging.getLogger(__name__)
+SUSPICIOUS_TAG = "protectarr-suspicious"
+HELD_TAG = "protectarr-held"
+CATEGORY_REFRESH_SECONDS = 600
+RESUME_WINDOW_SECONDS = 120
+MAX_CONTENT_ATTEMPTS = 3
+
+
+class Guard:
+    def __init__(self, cfg: Config, store: Store, qbit: QbitClient, arrs: list[ArrClient], scanner: Scanner,
+                 quarantine: Quarantine, notifier: Notifier, background_scans: bool = False, max_scans: int = 2):
+        self.cfg, self.store, self.qbit, self.arrs = cfg, store, qbit, arrs
+        self.scanner, self.quarantine, self.notifier = scanner, quarantine, notifier
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._blocked_at: dict[str, float] = {}
+        # Torrents that passed the file-list check and should be started if qBittorrent stops them.
+        self._resume_until: dict[str, float] = {}
+        self._others_seen: set[str] = set()
+        self._content_failures: dict[str, int] = {}
+        # Content scans can take a while (ClamAV); in the service they run beside the poll loop.
+        self.background_scans = background_scans
+        self._scan_slots = asyncio.Semaphore(max_scans)
+        self._scanning: set[str] = set()
+        self._tasks: set[asyncio.Task] = set()
+        # category -> {"profile": ..., "source": ...}; learned from the *arr apps and kept across restarts.
+        self.discovered: dict[str, dict] = store.get_setting("discovered_categories", {}) or {}
+        self.arr_errors: dict[str, str] = {}
+        self._categories_at = float("-inf")
+
+    async def reconnect(self) -> None:
+        """Rebuild every service client from self.cfg after the connections were changed in the web UI."""
+        from .clamav import ClamdClient  # local import: guard stays importable without the web layer
+
+        old = [self.qbit, *self.arrs]
+        c = self.cfg
+        self.qbit = QbitClient(c.qbittorrent.url, c.qbittorrent.username, c.qbittorrent.password)
+        self.arrs = [ArrClient(a) for a in c.arr]
+        self.scanner.clamd = (ClamdClient(c.clamav.host, c.clamav.port, c.clamav.timeout)
+                              if c.clamav.enabled and c.clamav.host else None)
+        self.scanner.stream_max_bytes = c.clamav.stream_max_mb * 1024 * 1024
+        names = {a.name for a in c.arr}
+        self.discovered = {k: v for k, v in self.discovered.items() if v.get("source") in names}
+        self.arr_errors = {}
+        self._categories_at = float("-inf")
+        for client in old:
+            try:
+                await client.close()
+            except Exception:
+                pass
+        if self.arrs:
+            await self.refresh_categories()
+        else:
+            self.store.set_setting("discovered_categories", self.discovered)
+        try:
+            await self.adopt_existing()  # first successful connection: leave finished torrents alone
+        except Exception as exc:
+            log.info("qBittorrent not reachable yet: %s", exc)
+
+    # ----- categories -------------------------------------------------------------------------------------
+
+    async def refresh_categories(self) -> None:
+        """Ask each *arr app which qBittorrent category it uses, so nothing needs configuring by hand."""
+        found: dict[str, dict] = {}
+        for c in self.arrs:
+            try:
+                cats = c.cfg.categories or await c.qbit_categories()
+                self.arr_errors.pop(c.name, None)
+            except Exception as exc:  # unreachable, wrong key, or not an *arr app at all
+                self.arr_errors[c.name] = _http_error(exc) if isinstance(exc, httpx.HTTPError) else _odd_answer(exc)
+                # Keep what we learned from this app last time.
+                cats = [k for k, v in self.discovered.items() if v.get("source") == c.name]
+            for cat in cats:
+                found.setdefault(cat, {"profile": c.cfg.profile, "source": c.name})
+        if found != self.discovered:
+            log.info("categories: %s", ", ".join(f"{k} ({v['source']}, {v['profile']})" for k, v in found.items())
+                     or "none found")
+            self.discovered = found
+            self.store.set_setting("discovered_categories", found)
+        self._categories_at = time.monotonic()
+
+    def watched(self, category: str) -> bool:
+        explicit = self.cfg.qbittorrent.categories
+        if explicit:
+            return category in explicit
+        # Nothing is checked until an *arr app (or an explicit category) says which torrents are media.
+        return category in self.discovered
+
+    def profile(self, category: str) -> str:
+        if category in self.cfg.rules.category_profiles:
+            return self.cfg.rules.category_profiles[category]
+        return self.discovered.get(category, {}).get("profile", "tv")
+
+    def category_table(self) -> list[dict]:
+        cats = set(self.cfg.qbittorrent.categories) | set(self.discovered) | set(self.cfg.rules.category_profiles)
+        rows = []
+        for cat in sorted(cats):
+            source = ("config" if cat in self.cfg.qbittorrent.categories
+                      else self.discovered.get(cat, {}).get("source", "config"))
+            rows.append({"category": cat, "profile": self.profile(cat), "source": source, "watched": self.watched(cat)})
+        return rows
+
+    # ----- polling -----------------------------------------------------------------------------------------
+
+    async def adopt_existing(self) -> int:
+        """On first run, leave torrents that already finished alone instead of scanning the whole client."""
+        if self.store.has_any_torrent() or not self.qbit.configured:
+            return 0
+        count = 0
+        for t in await self.qbit.torrents():
+            if is_complete(t):
+                self.store.set_stage(t["hash"], t["name"], t.get("category", ""), "metadata", "preexisting")
+                self.store.set_stage(t["hash"], t["name"], t.get("category", ""), "content", "preexisting")
+                count += 1
+        return count
+
+    async def run_forever(self) -> None:
+        while True:
+            try:
+                if self.arrs and time.monotonic() - self._categories_at > CATEGORY_REFRESH_SECONDS:
+                    await self.refresh_categories()
+                await self.poll()
+            except Exception:
+                log.exception("poll failed")
+            await asyncio.sleep(self.cfg.poll_seconds)
+
+    async def poll(self) -> None:
+        if not self.qbit.configured:
+            return
+        for t in await self.qbit.torrents():
+            try:
+                await self.process(t)
+            except Exception:
+                log.exception("checking '%s' failed", t.get("name"))
+
+    async def process_hash(self, torrent_hash: str) -> None:
+        t = await self.qbit.torrent(torrent_hash)
+        if t:
+            await self.process(t)
+
+    async def process(self, t: dict) -> None:
+        if not self.watched(t.get("category", "")):
+            await self._release_other(t)
+            return
+        h = t["hash"]
+        if h in self._scanning:
+            return
+        lock = self._locks.setdefault(h, asyncio.Lock())
+        async with lock:
+            if self.store.is_blocked(h):
+                # Either we just removed it and qBittorrent hasn't caught up, or it was added again.
+                if time.monotonic() - self._blocked_at.get(h, -1e9) > 120:
+                    await self._block(t, "metadata", Verdict(), "release was blocked before", quarantine_files=False)
+                return
+            row = self.store.torrent(h)
+            if not has_metadata(t):
+                return
+            if row is None or row["metadata_level"] is None:
+                if not await self.metadata_stage(t, fresh=row is None):
+                    return
+                row = self.store.torrent(h)
+            if row["metadata_level"] == "held":
+                return  # waiting for the user to allow or deny it
+            await self._resume_if_stopped(t)
+            if not (is_complete(t) and row["content_level"] is None):
+                return
+            if not self.background_scans:
+                try:
+                    await self.content_stage(t)
+                except Exception as exc:
+                    log.exception("content check of '%s' failed", t.get("name"))
+                    self._content_failed(t, exc)
+                return
+            self._scanning.add(h)
+        task = asyncio.create_task(self._background_content(t))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def _background_content(self, t: dict) -> None:
+        h = t["hash"]
+        try:
+            async with self._scan_slots, self._locks.setdefault(h, asyncio.Lock()):
+                await self.content_stage(t)
+        except Exception as exc:
+            log.exception("content check of '%s' failed", t.get("name"))
+            self._content_failed(t, exc)
+        finally:
+            self._scanning.discard(h)
+
+    def _content_failed(self, t: dict, exc: Exception) -> None:
+        """Retry a few polls later (a file may still be moving); after that, record it so you can see it."""
+        h = t["hash"]
+        self._content_failures[h] = self._content_failures.get(h, 0) + 1
+        if self._content_failures[h] >= MAX_CONTENT_ATTEMPTS:
+            self._content_failures.pop(h, None)
+            reason = f"could not check the downloaded files: {exc.__class__.__name__}: {exc}"
+            self.store.set_stage(h, t["name"], t.get("category", ""), "content", "error")
+            self.store.log(h, t["name"], "content", "error", reason, "not checked", [])
+
+    async def drain(self) -> None:
+        """Wait for background scans (used by tests and shutdown)."""
+        while self._tasks:
+            await asyncio.gather(*list(self._tasks), return_exceptions=True)
+
+    # ----- stages ------------------------------------------------------------------------------------------
+
+    async def metadata_stage(self, t: dict, fresh: bool) -> bool:
+        """Returns False when the torrent was blocked or held."""
+        h, name, cat = t["hash"], t["name"], t.get("category", "")
+        profile = self.profile(cat)
+        files = await self.qbit.files(h)
+        verdict = check_metadata(
+            [TorrentFile(f["name"], f["size"]) for f in files],
+            self.cfg.min_video_bytes(cat, profile), self.cfg.rules.allow_archives,
+            self.cfg.rules.extra_blocked_extensions, profile)
+        action = self._action(verdict)
+        if action == "block":
+            await self._block(t, "metadata", verdict, verdict.summary(), quarantine_files=False)
+            return False
+        if action == "hold":
+            await self._hold(t, "metadata", verdict)
+            return False
+        self.store.set_stage(h, name, cat, "metadata", verdict.level.label)
+        self.store.log(h, name, "metadata", verdict.level.label, verdict.summary(), action, verdict.to_list())
+        if action == "alert":
+            await self.qbit.add_tags(h, SUSPICIOUS_TAG)
+            await self.notifier.send("Protectarr: suspicious download", f"{name}\n{verdict.summary()}")
+        if fresh and self.cfg.qbittorrent.resume_after_metadata_check and t.get("progress", 0) < 1:
+            # qBittorrent's "stop when metadata received" holds new torrents for us. For torrents added from
+            # a .torrent file it can stop them a moment after we've already looked, so keep watching briefly.
+            self._resume_until[h] = time.monotonic() + RESUME_WINDOW_SECONDS
+            await self._resume_if_stopped(t)
+        return True
+
+    async def _release_other(self, t: dict) -> None:
+        """Start a new torrent in a category Protectarr doesn't check, if qBittorrent's "stop after metadata"
+        condition stopped it. Only torrents added in the last couple of minutes, and only once each."""
+        h = t["hash"]
+        if not has_metadata(t):
+            return
+        if h not in self._others_seen:
+            self._others_seen.add(h)
+            q = self.cfg.qbittorrent
+            fresh = time.time() - t.get("added_on", 0) < RESUME_WINDOW_SECONDS
+            if q.resume_after_metadata_check and q.resume_other_categories and fresh and t.get("progress", 0) < 1:
+                self._resume_until[h] = time.monotonic() + RESUME_WINDOW_SECONDS
+        await self._resume_if_stopped(t)
+
+    async def _resume_if_stopped(self, t: dict) -> None:
+        h = t["hash"]
+        until = self._resume_until.get(h)
+        if until is None:
+            return
+        if time.monotonic() > until or t.get("progress", 0) >= 1:
+            self._resume_until.pop(h, None)
+        elif t.get("state") in STOPPED_STATES and HELD_TAG not in (t.get("tags") or ""):
+            self._resume_until.pop(h, None)
+            await self.qbit.start(h)
+
+    async def content_stage(self, t: dict) -> None:
+        h, name, cat = t["hash"], t["name"], t.get("category", "")
+        files = await self.qbit.files(h)
+        local = self._local_files(t, files)
+        verdict = await self.scanner.scan(local, self.profile(cat))
+        action = self._action(verdict)
+        if action == "block":
+            await self._block(t, "content", verdict, verdict.summary(), quarantine_files=True, files=local)
+            return
+        if action == "hold":
+            await self._hold(t, "content", verdict, local)
+            return
+        self.store.set_stage(h, name, cat, "content", verdict.level.label)
+        self.store.log(h, name, "content", verdict.level.label, verdict.summary(), action, verdict.to_list())
+        if action == "alert":
+            await self.qbit.add_tags(h, SUSPICIOUS_TAG)
+            await self.notifier.send("Protectarr: suspicious download", f"{name}\n{verdict.summary()}")
+
+    def _local_files(self, t: dict, files: list[dict]) -> list[tuple[str, str]]:
+        save = self.cfg.to_local(t["save_path"])
+        return [(f["name"], posixpath.join(save, f["name"])) for f in files if f.get("priority", 1) != 0]
+
+    def _action(self, verdict: Verdict) -> str:
+        if verdict.level == Level.CLEAN:
+            return "allow"
+        return self.cfg.action_for(verdict.level.label)
+
+    # ----- actions -----------------------------------------------------------------------------------------
+
+    async def _block(self, t: dict, stage: str, verdict: Verdict, summary: str, quarantine_files: bool,
+                     files: list[tuple[str, str]] | None = None) -> None:
+        h, name, cat = t["hash"], t["name"], t.get("category", "")
+        level = verdict.level.label if verdict.findings else "malicious"
+        await self.qbit.stop(h)
+        steps = []
+        if quarantine_files and files:
+            qid = await asyncio.to_thread(
+                self.quarantine.store, h, name, files,
+                {"stage": stage, "level": level, "summary": summary, "findings": verdict.to_list(), "category": cat})
+            self.store.add_quarantine(qid, h, name, level, summary)
+            steps.append("quarantined")
+        step, indexer = await self._remove(h, name, cat, stage, level, summary)
+        steps.append(step)
+        action = "blocked: " + ", ".join(steps)
+        self.store.log(h, name, stage, level, summary, action, verdict.to_list(), indexer)
+        source = f" (from {indexer})" if indexer else ""
+        await self.notifier.send(f"Protectarr blocked a {level} download",
+                                 f"{name}{source}\n{summary}\n{action}{self._link('/quarantine')}")
+
+    async def _remove(self, h: str, name: str, cat: str, stage: str, level: str, reason: str) -> tuple[str, str]:
+        """Remove the torrent (via the *arr app with blocklisting when it owns it) and remember the block.
+        Returns (what was done, indexer the release came from)."""
+        self._blocked_at[h] = time.monotonic()
+        removal = await blocklist_everywhere(self.arrs, h)
+        if removal:
+            step = f"removed and blocklisted in {removal.app}"
+        else:
+            await self.qbit.delete(h, delete_files=True)
+            step = "removed from qBittorrent"
+        self.store.block_hash(h, name, reason)
+        self.store.set_stage(h, name, cat, stage, level, blocked=True)
+        return step, removal.indexer if removal else ""
+
+    async def _hold(self, t: dict, stage: str, verdict: Verdict, files: list[tuple[str, str]] | None = None) -> None:
+        """Stop the torrent, lock away any downloaded files, and ask the user to allow or deny it."""
+        h, name, cat = t["hash"], t["name"], t.get("category", "")
+        level, summary = verdict.level.label, verdict.summary()
+        await self.qbit.stop(h)
+        await self.qbit.add_tags(h, HELD_TAG)
+        qid = None
+        if files:
+            # Moving the files away also keeps the *arr app from importing them meanwhile.
+            qid = await asyncio.to_thread(
+                self.quarantine.store, h, name, files,
+                {"stage": stage, "level": level, "summary": summary, "findings": verdict.to_list(), "category": cat})
+            self.store.add_quarantine(qid, h, name, level, summary)
+        owner = await find_owner(self.arrs, h)
+        indexer = (owner[1].get("indexer") or "") if owner else ""
+        self.store.add_decision(h, name, cat, stage, level, summary, verdict.to_list(), qid, indexer)
+        self.store.set_stage(h, name, cat, stage, "held")
+        self.store.log(h, name, stage, level, summary, "held for your decision", verdict.to_list(), indexer)
+        await self.notifier.send(
+            "Protectarr is holding a suspicious download",
+            f"{name}\n{summary}\nIt stays stopped until you allow or deny it.{self._link('/review')}")
+
+    async def allow(self, decision_id: int) -> None:
+        d = self._pending(decision_id)
+        h, name, cat, stage = d["hash"], d["name"], d["category"], d["stage"]
+        async with self._locks.setdefault(h, asyncio.Lock()):
+            if d["quarantine_id"]:
+                await asyncio.to_thread(self.quarantine.restore, d["quarantine_id"])
+                self.store.set_quarantine_status(d["quarantine_id"], "restored")
+            self.store.set_stage(h, name, cat, stage, "allowed")
+            self.store.resolve_decision(decision_id, "allowed")
+            self.store.log(h, name, stage, d["level"], d["summary"], "allowed by you", [], d.get("indexer", ""))
+            if await self.qbit.torrent(h):
+                await self.qbit.remove_tags(h, HELD_TAG)
+                await self.qbit.start(h)
+
+    async def deny(self, decision_id: int) -> None:
+        d = self._pending(decision_id)
+        h, name, cat, stage = d["hash"], d["name"], d["category"], d["stage"]
+        async with self._locks.setdefault(h, asyncio.Lock()):
+            if d["quarantine_id"]:
+                await asyncio.to_thread(self.quarantine.delete, d["quarantine_id"])
+                self.store.set_quarantine_status(d["quarantine_id"], "deleted")
+            step, indexer = await self._remove(h, name, cat, stage, d["level"], d["summary"])
+            self.store.resolve_decision(decision_id, "denied")
+            self.store.log(h, name, stage, d["level"], d["summary"], f"denied by you: {step}", [],
+                           indexer or d.get("indexer", ""))
+
+    def _pending(self, decision_id: int) -> dict:
+        d = self.store.decision(decision_id)
+        if not d or d["status"] != "pending":
+            raise LookupError("no pending decision with that id")
+        return d
+
+    def _link(self, path: str) -> str:
+        return f"\nReview: {self.cfg.public_url.rstrip('/')}{path}" if self.cfg.public_url else ""
+
+
+def _odd_answer(exc: Exception) -> str:
+    return f"unexpected answer ({exc.__class__.__name__}); is this address really that app's?"
+
+
+def _http_error(exc: httpx.HTTPError) -> str:
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = exc.response.status_code
+        return {401: "API key rejected (401)", 403: "access denied (403)"}.get(code, f"HTTP {code}")
+    return f"cannot connect: {exc.__class__.__name__}"
