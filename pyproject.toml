@@ -1,6 +1,6 @@
 [project]
 name = "protectarr"
-version = "0.3.0"
+version = "0.4.0"
 description = "Blocks fake and malicious torrent releases before they reach your media library."
 requires-python = ">=3.11"
 dependencies = [

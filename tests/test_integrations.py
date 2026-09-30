@@ -459,8 +459,10 @@ async def test_unreadable_download_is_reported_not_retried_forever(stack, monkey
     qb.add("perm", "Show.S01E10", [("Show.S01E10.mkv", 400 * MB)], state="stalledUP", progress=1.0)
     for _ in range(5):
         await guard.poll()
-    [e] = [e for e in guard.store.events() if e["level"] == "error"]
-    assert "Permission denied" in e["summary"] and guard.store.torrent("perm")["content_level"] == "error"
+    # Not passed as clean: held for a decision, with the reason.
+    [d] = guard.store.pending_decisions()
+    assert "Permission denied" in d["summary"] and guard.store.torrent("perm")["content_level"] == "held"
+    assert qb.called("/torrents/stop")
 
 
 async def test_unreachable_service_does_not_hang_the_page(stack, monkeypatch):
@@ -554,6 +556,7 @@ async def test_disguised_program_caught_while_still_downloading(stack):
     qb.pieces["early1"] = [2] + [0] * 3599
     sonarr.queue = [{"id": 21, "downloadId": "EARLY1", "indexer": "BadTracker"}]
     await guard.poll()  # file list passes; then the first piece shows what it really is
+    await guard.drain()
     assert qb.called("/torrents/toggleFirstLastPiecePrio") == [{"hashes": "early1"}]
     [e] = [e for e in guard.store.events() if e["stage"] == "early"]
     assert e["level"] == "malicious" and "really a program" in e["summary"] and e["indexer"] == "BadTracker"
@@ -574,6 +577,7 @@ async def test_finished_extra_file_scanned_before_the_torrent_completes(stack):
     qb.pieces["early2"] = [2] * 40 + [0] * 60 + [2]
     guard.cfg.rules.allow_archives = True  # so the file list passes; the zip's contents give it away
     await guard.poll()
+    await guard.drain()
     [e] = [e for e in guard.store.events() if e["stage"] == "early"]
     assert "contains program files" in e["summary"] and qb.called("/torrents/delete")
 

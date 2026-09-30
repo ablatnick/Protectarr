@@ -52,8 +52,8 @@ def build_guard(cfg: Config) -> Guard:
         cfg, store,
         QbitClient(cfg.qbittorrent.url, cfg.qbittorrent.username, cfg.qbittorrent.password),
         [ArrClient(a) for a in cfg.arr],
-        Scanner(clamd, cfg.clamav.stream_max_mb * 1024 * 1024, cfg.rules.allow_archives),
-        Quarantine(cfg.quarantine_dir),
+        Scanner(clamd, cfg.clamav.stream_max_mb * 1024 * 1024, cfg.rules.allow_archives, cfg.clamav.scan_media),
+        Quarantine(cfg.quarantine_dir, os.path.join(cfg.data_dir, "quarantine-records")),
         Notifier(cfg.apprise_urls),
         background_scans=True,
     )
@@ -246,7 +246,7 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
     async def settings_api_save(request: Request):
         try:
             await _save_connections(await request.json())
-        except ValueError as exc:
+        except ValueError as exc:  # also malformed JSON
             raise HTTPException(400, str(exc))
         return await run_checks(guard)
 

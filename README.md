@@ -125,7 +125,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 |---|---|---|
 | `QBIT_URL` | empty | qBittorrent Web UI, e.g. `http://qbittorrent:8080`. Nothing contacts qBittorrent until this (or the Settings page) is set |
 | `QBIT_USERNAME` / `QBIT_PASSWORD` | `admin` / empty | |
-| `QBIT_RESUME_OTHER_CATEGORIES` | `true` | Start new torrents in other categories that qBittorrent's stop condition held (only ones added in the last 2 minutes) |
+| `QBIT_RESUME_OTHER_CATEGORIES` | `true` | Start new torrents in other categories that qBittorrent's stop condition held (only ones added in the last 2 minutes, or while Protectarr was down) |
 | `QBIT_CATEGORIES` | empty | Check only these categories instead of the ones read from the *arr apps |
 | `<APP>_URL`, `<APP>_API_KEY` | | `<APP>` is `SONARR`, `RADARR`, `LIDARR`, `READARR` or `WHISPARR`, optionally with a suffix (`RADARR_4K_URL`) |
 | `<APP>_CATEGORIES` | empty | Categories for that app, if it can't be read from its settings |
@@ -133,6 +133,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `CLAMAV_ENABLED` | `true` | |
 | `CLAMAV_HOST` / `CLAMAV_PORT` | empty / `3310` | clamd to scan with, e.g. `clamav` or `your-server-ip` |
 | `CLAMAV_STREAM_MAX_MB` | `25` | Largest file sent to ClamAV; keep it at or below clamd's `StreamMaxLength` |
+| `CLAMAV_SCAN_MEDIA` | `false` | Also send verified real video/audio files to ClamAV (their real type is always checked). Slow for albums and season packs |
 | `ACTION_MALICIOUS` / `ACTION_SUSPICIOUS` | `block` / `hold` | `block`, `hold` or `alert` |
 | `MIN_EPISODE_MB` / `MIN_MOVIE_MB` | `30` / `300` | Smallest believable episode and movie |
 | `CATEGORY_MIN_VIDEO_MB` | empty | Per-category override, e.g. `tv-anime=15` |
@@ -151,7 +152,10 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 
 - **It protects a media pipeline; it is not an antivirus.** It is built to catch fake and bait releases. It cannot make cracked software safe, and a brand-new trojan that ClamAV doesn't know yet will pass the signature check. (It will still be caught if it's a program pretending to be a video.)
 - **Import race.** Sonarr/Radarr import a download as soon as it finishes, so a check that runs after completion can lose that race. Protectarr closes it from both sides: while a torrent downloads it asks qBittorrent for each file's first and last pieces early, checks each file's real type as soon as its first piece arrives, and fully scans every file the moment it finishes, so there's almost nothing left to check at completion. And if an *arr app still imports something bad first (for example while Protectarr was down), Protectarr deletes the imported file through that app, marks the grab as failed so the release is blocklisted and searched again, and removes the torrent. Lidarr and Readarr are handled the same way.
-- **Large files and ClamAV.** Only files up to `CLAMAV_STREAM_MAX_MB` go to ClamAV. Big files that are verified real videos or audio are not sent; they're rarely the carrier.
+- **Large files and ClamAV.** Only files up to `CLAMAV_STREAM_MAX_MB` go to ClamAV, and files that are verified real videos or audio are not sent unless `CLAMAV_SCAN_MEDIA=true`; they're rarely the carrier.
+- **Nothing unchecked passes as clean.** If the downloaded files can't be found (wrong `PATH_MAPPINGS` or mounts), can't be read, or ClamAV is down, the download is treated as suspicious and held (by default) instead of passed. Downloads held only because ClamAV was down are scanned again and released or blocked automatically once it's back. The Settings page warns when qBittorrent's download folder isn't visible to Protectarr.
+- **Held means held.** A held torrent that something else starts (you in qBittorrent, qbit_manage) is stopped again; use Allow on the Review page. When files can't be moved into the quarantine folder, they're renamed in place with `.protectarr-held` so no *arr app imports them.
+- **Torrents keep being checked after their category changes**, for example by an *arr app's "category after import".
 - **qBittorrent only**, for now. Transmission and Deluge support is planned.
 - **Keep the UI on your LAN** (or behind a VPN or reverse proxy with its own login), and set `PROTECTARR_API_KEY`. Behind a reverse proxy, set `PUBLIC_URL` to the address you open it on.
 - **Failed qBittorrent logins back off** (1 minute, doubling up to 15), because qBittorrent bans an address after 5 failures. Saving the Settings page retries straight away.

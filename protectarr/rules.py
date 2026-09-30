@@ -15,12 +15,19 @@ BOOK_EXT = {".epub", ".mobi", ".azw", ".azw3", ".kfx", ".pdf", ".cbz", ".cbr", "
 LEGACY_VIDEO_EXT = {".wmv", ".asf"}
 SIDECAR_EXT = {
     ".srt", ".ass", ".ssa", ".sub", ".idx", ".sup", ".vtt", ".smi",
-    ".nfo", ".txt", ".jpg", ".jpeg", ".png", ".webp", ".sfv", ".md5", ".sha1", ".sha256",
+    ".nfo", ".txt", ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff",
+    ".sfv", ".md5", ".sha1", ".sha256",
 }
 EXECUTABLE_EXT = {
     ".exe", ".scr", ".com", ".pif", ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse",
     ".wsf", ".wsh", ".hta", ".msi", ".msp", ".lnk", ".jar", ".dll", ".cpl", ".reg", ".inf",
     ".app", ".dmg", ".pkg", ".sh", ".run", ".bin", ".desktop", ".apk", ".appimage", ".command",
+    # More things Windows runs or opens with code: shell/search links, help files, OneNote, app packages,
+    # Excel add-ins, management consoles, script hosts, Office macros and Python.
+    ".scf", ".chm", ".hlp", ".one", ".onepkg", ".msix", ".msixbundle", ".appx", ".appxbundle", ".appinstaller",
+    ".application", ".appref-ms", ".xll", ".xlam", ".xlsm", ".xltm", ".docm", ".dotm", ".pptm", ".ppsm", ".potm",
+    ".msc", ".mst", ".vb", ".ws", ".wsc", ".sct", ".ps1xml", ".psd1", ".settingcontent-ms", ".library-ms",
+    ".searchconnector-ms", ".iqy", ".slk", ".gadget", ".py", ".pyw", ".pyz", ".mde", ".ade", ".adp", ".ins", ".isp",
 }
 LURE_EXT = {".url", ".html", ".htm", ".website", ".webloc", ".pdf", ".docx", ".doc"}
 # Extra files that are normal in music releases (cue sheets, rip logs, playlists, booklets).
@@ -28,6 +35,14 @@ MUSIC_SIDECAR_EXT = {".cue", ".log", ".m3u", ".m3u8", ".accurip", ".pdf", ".md5"
 ARCHIVE_EXT = {".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".cab", ".arj"}
 DISK_IMAGE_EXT = {".iso", ".img", ".vhd", ".vhdx"}
 RTLO = "‮"
+# Characters that make the end of a name display in a different order: right-to-left override, embedding, isolate.
+BIDI_TRICKS = (RTLO, "\u202b", "\u2067")
+# Full Blu-ray and DVD rips: the disc's own structure files, which are not suspicious inside these folders.
+DISC_DIRS = {"bdmv", "aacs", "certificate", "video_ts", "audio_ts", "any!"}
+DISC_EXT = {".bdmv", ".clpi", ".mpls", ".bdjo", ".cer", ".tbl", ".ifo", ".bup", ".dat", ".xml", ".otf", ".ttf",
+            ".crl", ".m2ts", ".vob", ".jpg", ".png", ".prp", ".sig", ".mkb"}
+# Book releases (Readarr) often carry the library's metadata file and audiobook playlists.
+BOOK_SIDECAR_EXT = {".opf", ".cue", ".m3u", ".m3u8", ".json", ".xml"}
 LURE_WORDS = ("codec", "password", "passwd", "keygen", "crack", "player_setup", "watch online", "install")
 
 
@@ -38,7 +53,21 @@ class TorrentFile:
 
 
 def extension(name: str) -> str:
-    return PurePosixPath(name.lower()).suffix
+    # Windows drops trailing dots and spaces, so "Setup.exe. " is saved (and runs) as "Setup.exe".
+    return PurePosixPath(name.lower().rstrip(". ")).suffix
+
+
+def in_disc_structure(name: str) -> bool:
+    """A file inside a Blu-ray/DVD folder (BDMV, VIDEO_TS, ...) of a full-disc release."""
+    parts = PurePosixPath(name.lower()).parts[:-1]
+    return any(p in DISC_DIRS for p in parts)
+
+
+def _disc_exception(name: str, ext: str) -> bool:
+    """.inf and .jar are normal in discs: AACS key files and Blu-ray menu (BD-J) programs, only there."""
+    parts = [p.lower() for p in PurePosixPath(name).parts[:-1]]
+    in_bdmv_jar = any(a == "bdmv" and b == "jar" for a, b in zip(parts, parts[1:]))  # BDMV/JAR/00000/menu.jar
+    return (ext == ".inf" and "aacs" in parts) or (ext == ".jar" and in_bdmv_jar)
 
 
 def is_split_rar(ext: str) -> bool:
@@ -65,7 +94,8 @@ def check_metadata(files: list[TorrentFile], min_video_bytes: int, allow_archive
     blocked = EXECUTABLE_EXT | {e.lower() if e.startswith(".") else "." + e.lower() for e in (extra_blocked or [])}
     video = profile in ("tv", "movie")
     main_ext = MAIN_EXT.get(profile, VIDEO_EXT)
-    sidecar_ext = SIDECAR_EXT | (MUSIC_SIDECAR_EXT if profile == "music" else set())
+    sidecar_ext = (SIDECAR_EXT | (MUSIC_SIDECAR_EXT if profile == "music" else set())
+                   | (BOOK_SIDECAR_EXT if profile == "book" else set()))
     main_videos: list[TorrentFile] = []
     has_archive = False
 
@@ -75,11 +105,14 @@ def check_metadata(files: list[TorrentFile], min_video_bytes: int, allow_archive
         ext = extension(name)
         lower = base.lower()
 
-        if RTLO in name:
+        if any(c in name for c in BIDI_TRICKS):
             v.add(Level.MALICIOUS, "rtlo", f"hidden right-to-left character disguises the real extension of '{base}'", name)
             continue
+        disc = video and in_disc_structure(name)
+        if disc and _disc_exception(name, ext):
+            continue  # still sent to ClamAV after the download
         if ext in blocked:
-            suffixes = [s.lower() for s in PurePosixPath(lower).suffixes]
+            suffixes = [s.lower() for s in PurePosixPath(lower.rstrip(". ")).suffixes]
             fake = next((_MEDIA_WORD[s] for s in suffixes[:-1] if s in _MEDIA_WORD), None)
             if len(suffixes) > 1 and fake:
                 v.add(Level.MALICIOUS, "double_extension", f"'{base}' pretends to be {fake} but is a {ext} program", name)
@@ -89,6 +122,8 @@ def check_metadata(files: list[TorrentFile], min_video_bytes: int, allow_archive
         if ext in main_ext:
             if not is_sample(name):
                 main_videos.append(f)
+            continue
+        if disc and ext in DISC_EXT:
             continue
         if ext in sidecar_ext:
             if any(w in lower for w in LURE_WORDS):

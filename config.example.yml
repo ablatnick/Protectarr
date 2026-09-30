@@ -37,6 +37,7 @@ clamav:
   host: clamav
   port: 3310
   stream_max_mb: 25   # up to clamd's StreamMaxLength (25 MB by default)
+  scan_media: false   # also scan verified real video/audio (slow for albums and season packs)
 
 rules:
   min_video_mb: 30               # an episode smaller than this is treated as fake

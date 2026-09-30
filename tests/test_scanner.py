@@ -80,9 +80,9 @@ async def test_clamav_detection(tmp_path, fake_clamd):
     assert await fake_clamd.ping()
 
 
-async def test_clamav_down_is_reported_not_fatal(tmp_path):
+async def test_clamav_down_is_not_clean(tmp_path):
     v = await Scanner(ClamdClient("127.0.0.1", 1, timeout=1), 25 * MB).scan([write(tmp_path, "a.txt", b"hi")])
-    assert v.level == Level.CLEAN and "clamav_error" in codes(v)
+    assert v.level == Level.SUSPICIOUS and "clamav_unavailable" in codes(v)
 
 
 def test_parse_reply():

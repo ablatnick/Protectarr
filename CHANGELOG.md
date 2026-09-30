@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.0
+
+Fixes from a stress test of every way a bad file could get through.
+
+- **Nothing unchecked passes as clean any more.**
+  - Downloaded files that can't be found (wrong path mapping or mount) used to be skipped and the download marked clean. Now it's held, with a hint to fix `PATH_MAPPINGS`, and the Settings page warns when qBittorrent's download folder isn't visible.
+  - A download that couldn't be checked after 3 tries was recorded as an error and left for the *arr app to import. Now it's treated as suspicious (held by default).
+  - ClamAV being down made files count as clean. Now they're held, and scanned again automatically once ClamAV answers: released if clean, blocked if infected.
+  - When the quarantine folder can't be written (full disk, wrong owner), files are renamed in place (`.protectarr-held`) so nothing imports them; a half-finished move is rolled back. When blocking, the files are deleted with the torrent instead.
+- **Torrents that leave the watched category are still checked**, e.g. when an *arr app's "category after import" moves them before the scan finished.
+- **Held torrents stay stopped** if something else starts them.
+- **Library clean-up only deletes the file the bad release imported.** A release added again after it was blocked no longer touches the library (it could delete a good file that replaced it), and a path taken over by a later import is left alone.
+- **A failed removal is retried** instead of the release later being recorded as clean.
+- **Scans never hold up the poll loop:** files that finish while downloading are scanned beside it, and verified media isn't sent to ClamAV unless `CLAMAV_SCAN_MEDIA=true`. A 30-track album no longer delays blocking a new bait torrent.
+- **More Windows-runnable files blocked:** `.scf .chm .one .msix .appx .xll .msc .vb .ws .settingcontent-ms .library-ms .xlsm .docm .py .pyw .gadget` and more, names ending in a dot or space (`Setup.exe.`), and other right-to-left tricks besides RLO.
+- With `ALLOW_ARCHIVES=true`, archives containing another archive or a disk image are suspicious.
+- **Fewer false alarms:** full Blu-ray/DVD rips (BDMV, VIDEO_TS), `.tif`/`.bmp`/`.gif` scans, `.opf` in audiobooks, RF64/BW64 WAVs over 4 GB, MP3s with leading padding, and `.ts` recordings that don't start on a packet.
+- A clean torrent stopped by qBittorrent just as Protectarr restarted is started after the restart, and torrents in other categories added while Protectarr was down are started too.
+- `/api/settings` answers malformed input with 400 instead of 500, and rejects invalid ClamAV ports.
+
 ## 0.3.0
 
 - **Import race closed from both sides.**

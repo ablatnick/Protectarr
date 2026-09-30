@@ -49,7 +49,17 @@ async def check_qbit(guard: Guard) -> dict:
     if not (added and finished):
         hints.append("Optional: add the 'Run external program' hooks from the README so Protectarr reacts "
                      "instantly instead of within a few seconds.")
-    return _item("qBittorrent", True, f"connected, {version}", hints, cfg.url, stop_condition_ok=stop_ok)
+    unseen = []
+    for key, on in (("save_path", True), ("temp_path", prefs.get("temp_path_enabled"))):
+        remote = (prefs.get(key) or "").rstrip("/")
+        if on and remote and not os.path.isdir(guard.cfg.to_local(remote)):
+            unseen.append(f"{remote} (looked for {guard.cfg.to_local(remote)})")
+    if unseen:
+        hints.insert(0, "Protectarr can't see qBittorrent's download folder " + ", ".join(unseen) + ". Mount it into "
+                     "Protectarr at the same path, or add a PATH_MAPPINGS entry; until then every finished download "
+                     "is held because its files can't be checked.")
+    return _item("qBittorrent", True, f"connected, {version}", hints, cfg.url, stop_condition_ok=stop_ok,
+                 folders_ok=not unseen)
 
 
 async def check_arr(guard: Guard, client) -> dict:
@@ -161,6 +171,8 @@ async def run_checks(guard: Guard) -> dict:
     if guard.arrs and not any(c["watched"] for c in categories):
         warnings.append("No qBittorrent categories are being watched yet, so nothing is checked. Fix the *arr "
                         "connections below, or fill in their categories.")
+    if by["qBittorrent"].get("folders_ok") is False:
+        warnings.append(by["qBittorrent"]["hints"][0])
     folders = by["Folders"]
     if not folders["ok"]:
         warnings.append(folders["detail"] + ". " + " ".join(folders["hints"]))

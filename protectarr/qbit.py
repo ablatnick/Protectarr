@@ -9,6 +9,7 @@ import httpx
 NO_METADATA_STATES = {"metaDL", "forcedMetaDL"}
 BUSY_STATES = {"checkingUP", "checkingDL", "checkingResumeData", "moving", "allocating"}
 STOPPED_STATES = {"stoppedDL", "pausedDL"}
+PAUSED_STATES = STOPPED_STATES | {"stoppedUP", "pausedUP"}
 
 
 # After a failed login, wait this long (doubling up to the maximum) before trying again. qBittorrent bans an

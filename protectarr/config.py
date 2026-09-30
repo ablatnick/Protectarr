@@ -70,6 +70,8 @@ class ClamavConfig:
     timeout: float = 120.0
     # clamd's default StreamMaxLength is 25 MB; larger files are not streamed.
     stream_max_mb: int = 25
+    # Also scan files that are verified real video/audio (their type is always checked either way).
+    scan_media: bool = False
 
 
 @dataclass
@@ -176,6 +178,10 @@ def _validate(cfg: Config) -> None:
         if a.name.lower() in names:
             raise ValueError(f"two apps are called '{a.name}'; give each one its own name (e.g. 'Radarr 4K')")
         names.add(a.name.lower())
+    if not 0 < cfg.clamav.port < 65536:
+        raise ValueError(f"ClamAV port {cfg.clamav.port} is not a valid port")
+    if cfg.clamav.stream_max_mb < 1:
+        raise ValueError("ClamAV size limit must be at least 1 MB")
     bad = {k: v for k, v in cfg.rules.category_profiles.items() if v not in PROFILES}
     if bad:
         raise ValueError(f"unknown category profiles {bad}; use one of {sorted(PROFILES)}")
@@ -235,6 +241,8 @@ def from_env(env: dict[str, str] | None = None) -> Config:
     c.port = int(g("CLAMAV_PORT", str(c.port)))
     c.stream_max_mb = int(g("CLAMAV_STREAM_MAX_MB", str(c.stream_max_mb)))
     c.timeout = float(g("CLAMAV_TIMEOUT", str(c.timeout)))
+    if "CLAMAV_SCAN_MEDIA" in env:
+        c.scan_media = _bool(env["CLAMAV_SCAN_MEDIA"])
 
     r = cfg.rules
     r.min_video_mb = int(g("MIN_EPISODE_MB", str(r.min_video_mb)))
@@ -290,9 +298,18 @@ def connections_of(cfg: Config) -> dict:
 
 
 def apply_connections(cfg: Config, data: dict) -> Config:
-    """Apply saved connections to cfg (in place) and return it."""
+    """Apply saved connections to cfg (in place) and return it. Malformed data raises ValueError."""
     if not data:
         return cfg
+    try:
+        return _apply_connections(cfg, data)
+    except (TypeError, KeyError, AttributeError) as exc:
+        raise ValueError(f"malformed settings: {exc.__class__.__name__}: {exc}") from None
+
+
+def _apply_connections(cfg: Config, data: dict) -> Config:
+    if not isinstance(data, dict):
+        raise TypeError("expected an object")
     q = data.get("qbittorrent") or {}
     for k in ("url", "username", "password"):
         if k in q:
@@ -327,6 +344,17 @@ def merge_connections(current: dict, submitted: dict) -> dict:
     """Combine a submitted form with the current connections. A blank password or API key keeps the saved
     one, so secrets never have to be shown in the page. It's only kept for the same address: otherwise
     anyone who can open the page could point a service at their own server and collect the saved secret."""
+    try:
+        return _merge_connections(current, submitted)
+    except (TypeError, KeyError, AttributeError) as exc:
+        raise ValueError(f"malformed settings: {exc.__class__.__name__}: {exc}") from None
+
+
+def _merge_connections(current: dict, submitted: dict) -> dict:
+    if not isinstance(submitted, dict) or not all(isinstance(submitted.get(k, {}), dict)
+                                                  for k in ("qbittorrent", "prowlarr", "clamav")) \
+            or not isinstance(submitted.get("arr", []), list):
+        raise TypeError("each section must be an object, and 'arr' a list")
     out = {k: dict(v) if isinstance(v, dict) else v for k, v in current.items()}
     for section, secret, label in (("qbittorrent", "password", None), ("prowlarr", "api_key", "Prowlarr"),
                                    ("clamav", None, None)):

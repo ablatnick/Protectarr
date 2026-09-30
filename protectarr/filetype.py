@@ -85,7 +85,7 @@ def sniff_bytes(head: bytes) -> str:
         return "mp3"
     if head.startswith(b"OggS"):
         return "ogg"
-    if head.startswith(b"RIFF") and head[8:12] == b"WAVE":
+    if head[:4] in (b"RIFF", b"RF64", b"BW64") and head[8:12] == b"WAVE":  # RF64/BW64: WAVs over 4 GB
         return "wav"
     if head.startswith(b"FORM") and head[8:12] in (b"AIFF", b"AIFC"):
         return "aiff"
@@ -97,6 +97,13 @@ def sniff_bytes(head: bytes) -> str:
         return "dsf"
     if head[60:68] in (b"BOOKMOBI", b"TEXtREAd"):
         return "mobi"
+    ts = _ts_offset(head)
+    if ts is not None:
+        return "mpeg_ts"  # a recording cut mid-packet: the packets start a little way in
+    padded = head.lstrip(b"\0")
+    if 0 < len(padded) < len(head) and (padded.startswith(b"ID3") or (len(padded) > 1 and padded[0] == 0xFF
+                                                                     and padded[1] & 0xE0 == 0xE0)):
+        return "mp3"  # some encoders pad the start with zeros
     stripped = head.lstrip().lower()
     if stripped.startswith((b"<!doctype html", b"<html", b"<script")):
         return "html"
@@ -105,9 +112,17 @@ def sniff_bytes(head: bytes) -> str:
     return "unknown"
 
 
+def _ts_offset(head: bytes) -> int | None:
+    """Where MPEG-TS packets (0x47 every 188 bytes, three in a row) start in the first packet's worth of bytes."""
+    for i in range(min(188, len(head) - 376)):
+        if head[i] == 0x47 and head[i + 188] == 0x47 and head[i + 376] == 0x47:
+            return i
+    return None
+
+
 def sniff(path: str | Path) -> str:
     with open(path, "rb") as fh:
-        head = fh.read(512)
+        head = fh.read(1024)
     if not head:
         return "empty"
     kind = sniff_bytes(head)
