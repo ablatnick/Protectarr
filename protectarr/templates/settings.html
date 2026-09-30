@@ -10,13 +10,13 @@
   <ol>{% for c in status.checklist %}<li class="{{ 'done' if c.done else '' }}"><span class="tick">{{ "✓" if c.done else loop.index }}</span>{{ c.text }}</li>{% endfor %}</ol>
 </div>{% endif %}
 {% for w in status.warnings %}<div class="note">{{ w }}</div>{% endfor %}
-<p class="muted">Enter the address each service is reachable on from Protectarr, e.g. <code>http://192.168.1.10:8989</code>, or <code>http://sonarr:8989</code> when they share a Docker network. Passwords and API keys you've saved are never shown; leave those fields empty to keep them.</p>
+<p class="muted">Enter the address each service is reachable on from Protectarr, e.g. <code>http://your-server-ip:8989</code>, or <code>http://sonarr:8989</code> when they share a Docker network. Passwords and API keys you've saved are never shown; leave those fields empty to keep them.</p>
 
 <form method="post" action="/settings" autocomplete="off">
 <fieldset><legend>qBittorrent</legend>
   {{ state("qBittorrent") }}
   <div class="row">
-    <label>Address<input class="wide" name="qbit_url" value="{{ conn.qbittorrent.url }}" placeholder="http://192.168.1.10:8080" required></label>
+    <label>Address<input class="wide" name="qbit_url" value="{{ conn.qbittorrent.url }}" placeholder="http://your-server-ip:8080" required></label>
     <label>Username<input name="qbit_username" value="{{ conn.qbittorrent.username }}"></label>
     <label>Password<input type="password" name="qbit_password" placeholder="{{ 'saved, leave empty to keep' if conn.qbittorrent.password else '' }}"></label>
   </div>
@@ -38,7 +38,7 @@
   <div class="row">
     <label>Add<select name="arr-new-kind">{% for k in kinds %}<option value="{{ k }}">{{ k|capitalize }}</option>{% endfor %}</select></label>
     <label>Name<input name="arr-new-name" placeholder="optional" size="12"></label>
-    <label>Address<input class="wide" name="arr-new-url" placeholder="http://192.168.1.10:8989"></label>
+    <label>Address<input class="wide" name="arr-new-url" placeholder="http://your-server-ip:8989"></label>
     <label>API key<input type="password" name="arr-new-api_key"></label>
     <label>Categories<input name="arr-new-categories" placeholder="automatic" size="12"></label>
   </div>
@@ -48,7 +48,7 @@
   {{ state("ClamAV") }}
   <div class="row">
     <label class="check"><input type="checkbox" name="clamav_enabled"{% if conn.clamav.enabled %} checked{% endif %}> Scan with ClamAV</label>
-    <label>Host<input name="clamav_host" value="{{ conn.clamav.host }}" placeholder="192.168.1.10 or clamav"></label>
+    <label>Host<input name="clamav_host" value="{{ conn.clamav.host }}" placeholder="your-server-ip or clamav"></label>
     <label>Port<input name="clamav_port" value="{{ conn.clamav.port }}" size="6"></label>
     <label>Largest file to send (MB)<input name="clamav_stream_max_mb" value="{{ conn.clamav.stream_max_mb }}" size="6"></label>
   </div>
@@ -58,7 +58,7 @@
 <fieldset><legend>Prowlarr (optional)</legend>
   {{ state("Prowlarr") }}
   <div class="row">
-    <label>Address<input class="wide" name="prowlarr_url" value="{{ conn.prowlarr.url }}" placeholder="http://192.168.1.10:9696"></label>
+    <label>Address<input class="wide" name="prowlarr_url" value="{{ conn.prowlarr.url }}" placeholder="http://your-server-ip:9696"></label>
     <label>API key<input type="password" name="prowlarr_api_key" placeholder="{{ 'saved, leave empty to keep' if conn.prowlarr.api_key else '' }}"></label>
   </div>
   <p class="muted" style="margin-bottom:0">Adds links and indexer status to the Indexers page. Leave the address empty to skip.</p>

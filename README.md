@@ -64,7 +64,7 @@ Protectarr is a single container. You run qBittorrent (4.5 or later, 5.x recomme
    - each *arr app's address and API key (**Settings > General > Security** in that app),
    - ClamAV's host and port (3310), and Prowlarr if you want indexer reports.
 
-   Addresses can be `192.168.1.10:8989` or a full URL. Click **Save and test**: every service shows **Connected** or tells you what to fix, and the category table lists what's being watched. Changes apply immediately, with no restart.
+   Addresses can be `your-server-ip:8989` or a full URL. Click **Save and test**: every service shows **Connected** or tells you what to fix, and the category table lists what's being watched. Changes apply immediately, with no restart.
 
 4. In qBittorrent, set **Options > Downloads > Torrent stop condition** to **Metadata received**. New torrents then wait until Protectarr has checked their file list, and Protectarr starts them if they pass. That setting applies to every torrent, so Protectarr also starts new torrents in categories it doesn't check; torrents you stopped yourself are never touched.
 
@@ -131,7 +131,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `<APP>_CATEGORIES` | empty | Categories for that app, if it can't be read from its settings |
 | `PROWLARR_URL`, `PROWLARR_API_KEY` | empty | |
 | `CLAMAV_ENABLED` | `true` | |
-| `CLAMAV_HOST` / `CLAMAV_PORT` | empty / `3310` | clamd to scan with, e.g. `clamav` or `192.168.1.10` |
+| `CLAMAV_HOST` / `CLAMAV_PORT` | empty / `3310` | clamd to scan with, e.g. `clamav` or `your-server-ip` |
 | `CLAMAV_STREAM_MAX_MB` | `25` | Largest file sent to ClamAV; keep it at or below clamd's `StreamMaxLength` |
 | `ACTION_MALICIOUS` / `ACTION_SUSPICIOUS` | `block` / `hold` | `block`, `hold` or `alert` |
 | `MIN_EPISODE_MB` / `MIN_MOVIE_MB` | `30` / `300` | Smallest believable episode and movie |

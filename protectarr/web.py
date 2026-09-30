@@ -286,7 +286,7 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
 
 
 def _url(value: str) -> str:
-    """Accept "192.168.1.10:8989" as well as full URLs."""
+    """Accept "your-server-ip:8989" as well as full URLs."""
     value = value.strip().rstrip("/")
     if value and "://" not in value:
         value = "http://" + value
