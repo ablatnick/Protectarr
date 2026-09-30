@@ -2,7 +2,7 @@
 
 # Protectarr
 
-Scared to torrent due to security risks? Worry no more! Protectarr stands in between your machine and torrent files.
+Scared to torrent due to security risks? Worry no more! Protectarr stands in between your machine and torrent files. I can not take full credit for this creation. As my coding skills are lacking I relied on Claude for a majority of the coding. Sure I could have took the time and coded this myself. Although, after a recent scare in my own arr stack and suspicious files downloading onto my homelab. I felt the sooner something like this is created the better! This whole project is open source, please make changes and make your own version of this project! In a world where everything requires a subscription owning your own stuff becomes ever increasingly difficult. I hope this project helps to get homelabbing and owning your own media out there, by adding a little more security and giving people a little more piece of mind.
 
 Protectarr stops fake and malicious torrent releases before they reach your media library. It sits beside qBittorrent and your *arr apps (Sonarr, Radarr, Lidarr, Readarr, Whisparr, with Prowlarr for indexer reports), checks every download they grab, and has the *arr app blocklist anything bad and search for a different release.
 
