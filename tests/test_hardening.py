@@ -39,7 +39,7 @@ async def ready(guard):
 
 def restarted(guard):
     """A new Guard on the same database, as after a container restart."""
-    return Guard(guard.cfg, guard.store, guard.qbit, guard.arrs, guard.scanner, guard.quarantine, guard.notifier)
+    return Guard(guard.cfg, guard.store, guard.qbit, guard.arrs, guard.scanner, guard.quarantine)
 
 
 async def fake_clamd(infected=b""):

@@ -8,8 +8,7 @@ services:
     user: "1000:1000"                          # CHANGE: the same PUID:PGID as qBittorrent
     environment:
       PROTECTARR_API_KEY: changeme             # CHANGE: the web UI password (any username)
-      # PUBLIC_URL: http://your-server:9797    # optional: for links in notifications
-      # APPRISE_URLS: "discord://webhook_id/webhook_token ntfy://ntfy.sh/your-topic"
+      # PUBLIC_URL: https://protectarr.example.com   # optional: only behind a reverse proxy
     volumes:
       - ./protectarr/config:/config            # settings and history
       - ./protectarr/quarantine:/quarantine    # blocked files

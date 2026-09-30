@@ -27,11 +27,11 @@ Each *arr app gets rules that fit what it downloads. Lidarr releases may contain
 
 | Verdict | Examples | Default action |
 |---|---|---|
-| **Malicious** | a program, a disguised program, a password-protected archive, a ClamAV detection | **Block:** stop the torrent, move any files into a read-only quarantine, remove it from the *arr queue with blocklisting on (so it searches for another release), and notify you |
+| **Malicious** | a program, a disguised program, a password-protected archive, a ClamAV detection | **Block:** stop the torrent, move any files into a read-only quarantine, remove it from the *arr queue with blocklisting on (so it searches for another release) |
 | **Suspicious** | a WMV file, an archive, a video far too small, a file that isn't what its name says | **Hold:** stop the torrent, lock away any files so nothing imports them, and wait for you to **Allow** or **Deny** it on the Review page |
 | **Clean** | a normal release | Nothing. If qBittorrent paused it after metadata, Protectarr starts it again |
 
-You can change each action to `block`, `hold` or `alert` (tag and notify only). Notifications go anywhere [Apprise](https://github.com/caronc/apprise/wiki) supports: Discord, Telegram, ntfy, email, Pushover and more.
+You can change each action to `block` or `hold`.
 
 ## Quick start
 
@@ -138,7 +138,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `CLAMAV_HOST` / `CLAMAV_PORT` | empty / `3310` | clamd to scan with, e.g. `clamav` or `your-server-ip` |
 | `CLAMAV_STREAM_MAX_MB` | `25` | Largest file sent to ClamAV; keep it at or below clamd's `StreamMaxLength` |
 | `CLAMAV_SCAN_MEDIA` | `false` | Also send verified real video/audio files to ClamAV (their real type is always checked). Slow for albums and season packs |
-| `ACTION_MALICIOUS` / `ACTION_SUSPICIOUS` | `block` / `hold` | `block`, `hold` or `alert` |
+| `ACTION_MALICIOUS` / `ACTION_SUSPICIOUS` | `block` / `hold` | `block` or `hold` |
 | `MIN_EPISODE_MB` / `MIN_MOVIE_MB` | `30` / `300` | Smallest believable episode and movie |
 | `CATEGORY_MIN_VIDEO_MB` | empty | Per-category override, e.g. `tv-anime=15` |
 | `CATEGORY_PROFILES` | empty | What a category holds when no *arr app says so, e.g. `audiobooks=book,concerts=movie` (`tv`, `movie`, `music`, `book`) |
@@ -147,8 +147,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `PATH_MAPPINGS` | empty | `qbit-path:protectarr-path`, comma-separated |
 | `PROTECTARR_API_KEY` | empty | Web UI password until you set your own login on the Settings page; also required as `?key=` on hooks |
 | `PROTECTARR_RESET_LOGIN` | `false` | Forget the login set on the Settings page (when you're locked out) |
-| `PUBLIC_URL` | empty | How you open the UI, for links in notifications |
-| `APPRISE_URLS` | empty | Space-separated Apprise URLs |
+| `PUBLIC_URL` | empty | How you open the UI, if that's through a reverse proxy |
 | `POLL_SECONDS` | `5` | How often qBittorrent is checked |
 | `EARLY_CHECKS` | `true` | Check files while they download (real type from the first piece, full scan as each file finishes) |
 | `QUARANTINE_DIR` / `DATA_DIR` | `/quarantine` / `/config` | |
@@ -161,6 +160,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 - **Nothing unchecked passes as clean.** If the downloaded files can't be found (wrong `PATH_MAPPINGS` or mounts), can't be read, or ClamAV is down, the download is treated as suspicious and held (by default) instead of passed. Downloads held only because ClamAV was down are scanned again and released or blocked automatically once it's back. The Settings page warns when qBittorrent's download folder isn't visible to Protectarr.
 - **Held means held.** A held torrent that something else starts (you in qBittorrent, qbit_manage) is stopped again; use Allow on the Review page. When files can't be moved into the quarantine folder, they're renamed in place with `.protectarr-held` so no *arr app imports them.
 - **Torrents keep being checked after their category changes**, for example by an *arr app's "category after import".
+- **Notifications: coming soon.** Protectarr doesn't send alerts (Discord, Telegram, ntfy, email) yet. For now, check the Activity and Review pages (Review shows a badge when something is waiting for you), or watch the container log, which records every block and hold.
 - **qBittorrent only**, for now. Transmission and Deluge support is planned.
 - **Keep the UI on your LAN** (or behind a VPN or reverse proxy with its own login), and set `PROTECTARR_API_KEY`. Behind a reverse proxy, set `PUBLIC_URL` to the address you open it on.
 - **Failed qBittorrent logins back off** (1 minute, doubling up to 15), because qBittorrent bans an address after 5 failures. Saving the Settings page retries straight away.

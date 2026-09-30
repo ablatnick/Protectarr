@@ -11,7 +11,6 @@ dependencies = [
     "pyyaml>=6.0",
     "rarfile>=4.1",
     "py7zr>=0.21",
-    "apprise>=1.7",
 ]
 
 [project.optional-dependencies]

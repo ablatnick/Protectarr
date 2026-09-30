@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from dataclasses import dataclass, field
@@ -9,7 +10,7 @@ from pathlib import Path
 
 import yaml
 
-ACTIONS = {"block", "hold", "alert"}
+ACTIONS = {"block", "hold"}
 PROFILES = {"tv", "movie", "music", "book"}
 # kind -> (API version, what its downloads contain)
 ARR_KINDS = {
@@ -19,6 +20,7 @@ ARR_KINDS = {
     "lidarr": ("v1", "music"),
     "readarr": ("v1", "book"),
 }
+log = logging.getLogger(__name__)
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _ARR_ENV = re.compile(r"^(" + "|".join(k.upper() for k in ARR_KINDS) + r")(?:_([A-Z0-9]+))?_URL$")
 
@@ -109,9 +111,8 @@ class Config:
     quarantine_dir: str = "/quarantine"
     data_dir: str = "/config"
     poll_seconds: float = 5.0
-    apprise_urls: list[str] = field(default_factory=list)
     port: int = 9797
-    # Address of the web UI as you open it, used for links in notifications.
+    # Address of the web UI as you open it (behind a reverse proxy, so its form posts are accepted).
     public_url: str = ""
     # When set, the web UI asks for it (HTTP Basic, any username) and hooks must pass ?key=. After you set your
     # own username and password on the Settings page, it only opens /api/ (hooks and scripts).
@@ -160,7 +161,7 @@ def from_dict(raw: dict) -> Config:
         rules=RulesConfig(**raw.get("rules", {})),
         path_mappings=[PathMapping(**m) for m in raw.get("path_mappings", [])],
     )
-    for key in ("quarantine_dir", "data_dir", "poll_seconds", "apprise_urls", "port", "api_key", "public_url",
+    for key in ("quarantine_dir", "data_dir", "poll_seconds", "port", "api_key", "public_url",
                 "early_checks", "reset_login"):
         if key in raw:
             setattr(cfg, key, raw[key])
@@ -171,6 +172,11 @@ def from_dict(raw: dict) -> Config:
 
 
 def _validate(cfg: Config) -> None:
+    for level, action in cfg.actions.items():
+        if action == "alert":  # removed in 0.4: notifications will come back as their own feature
+            log.warning("the 'alert' action was removed; %s downloads are held instead (ACTION_%s=hold)",
+                        level, level.upper())
+            cfg.actions[level] = "hold"
     bad = {k: v for k, v in cfg.actions.items() if v not in ACTIONS}
     if bad:
         raise ValueError(f"unknown actions {bad}; use one of {sorted(ACTIONS)}")
@@ -265,7 +271,6 @@ def from_env(env: dict[str, str] | None = None) -> Config:
     cfg.quarantine_dir = g("QUARANTINE_DIR", cfg.quarantine_dir)
     cfg.data_dir = g("DATA_DIR", cfg.data_dir)
     cfg.poll_seconds = float(g("POLL_SECONDS", str(cfg.poll_seconds)))
-    cfg.apprise_urls = env.get("APPRISE_URLS", "").split()
     cfg.port = int(g("PORT", str(cfg.port)))
     cfg.public_url = g("PUBLIC_URL")
     cfg.api_key = g("PROTECTARR_API_KEY")

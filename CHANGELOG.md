@@ -4,6 +4,8 @@
 
 - **Your own login:** after the first login (with `PROTECTARR_API_KEY`), set a username and password under Settings > Login. The password is stored as a salted PBKDF2 hash; the API key then only opens hooks and the JSON API. Without an API key, a login protects the page and a hook key is generated. `PROTECTARR_RESET_LOGIN=true` clears it if you're locked out, and repeated wrong passwords are slowed down.
 
+- **Removed: Apprise notifications and the `alert` action.** Notifications are coming back as a proper feature. `APPRISE_URLS` / `apprise_urls` are ignored, and an existing `alert` action is treated as `hold` (with a warning in the log). Blocks and holds are still recorded on the Activity page and in the log.
+
 Fixes from a stress test of every way a bad file could get through:
 
 - **Nothing unchecked passes as clean any more.**

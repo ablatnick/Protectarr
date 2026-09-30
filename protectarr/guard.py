@@ -13,14 +13,12 @@ from .arr import ArrClient, blocklist_everywhere, find_owner
 from .config import Config
 from .db import Store
 from .findings import Level, Verdict
-from .notify import Notifier
 from .qbit import PAUSED_STATES, STOPPED_STATES, QbitClient, has_metadata, is_complete
 from .quarantine import Quarantine
 from .rules import TorrentFile, check_metadata
 from .scanner import ClamavUnavailable, Scanner
 
 log = logging.getLogger(__name__)
-SUSPICIOUS_TAG = "protectarr-suspicious"
 HELD_TAG = "protectarr-held"
 CATEGORY_REFRESH_SECONDS = 600
 RESUME_WINDOW_SECONDS = 120
@@ -32,9 +30,9 @@ RECHECK_SECONDS = 60  # how often held downloads that ClamAV couldn't scan are t
 
 class Guard:
     def __init__(self, cfg: Config, store: Store, qbit: QbitClient, arrs: list[ArrClient], scanner: Scanner,
-                 quarantine: Quarantine, notifier: Notifier, background_scans: bool = False, max_scans: int = 2):
+                 quarantine: Quarantine, background_scans: bool = False, max_scans: int = 2):
         self.cfg, self.store, self.qbit, self.arrs = cfg, store, qbit, arrs
-        self.scanner, self.quarantine, self.notifier = scanner, quarantine, notifier
+        self.scanner, self.quarantine = scanner, quarantine
         self._locks: dict[str, asyncio.Lock] = {}
         self._blocked_at: dict[str, float] = {}
         # Torrents that passed the file-list check and should be started if qBittorrent stops them (wall-clock
@@ -309,9 +307,6 @@ class Guard:
             return False
         self.store.set_stage(h, name, cat, "metadata", verdict.level.label)
         self.store.log(h, name, "metadata", verdict.level.label, verdict.summary(), action, verdict.to_list())
-        if action == "alert":
-            await self.qbit.add_tags(h, SUSPICIOUS_TAG)
-            await self.notifier.send("Protectarr: suspicious download", f"{name}\n{verdict.summary()}")
         if fresh and self.cfg.qbittorrent.resume_after_metadata_check and t.get("progress", 0) < 1:
             # qBittorrent's "stop when metadata received" holds new torrents for us. For torrents added from
             # a .torrent file it can stop them a moment after we've already looked, so keep watching briefly.
@@ -406,11 +401,6 @@ class Guard:
             await self._block(t, "early", verdict, verdict.summary(), quarantine_files=True, files=present)
         elif action == "hold":
             await self._hold(t, "early", verdict, present)
-        elif not st.get("alerted"):
-            st["alerted"] = True
-            self.store.log(h, t["name"], "early", verdict.level.label, verdict.summary(), "alert", verdict.to_list())
-            await self.qbit.add_tags(h, SUSPICIOUS_TAG)
-            await self.notifier.send("Protectarr: suspicious download", f"{t['name']}\n{verdict.summary()}")
 
     async def content_stage(self, t: dict) -> None:
         h, cat = t["hash"], t.get("category", "")
@@ -426,7 +416,7 @@ class Guard:
         await self._apply(t, "content", verdict, local)
 
     async def _apply(self, t: dict, stage: str, verdict: Verdict, files: list[tuple[str, str]]) -> None:
-        """Act on a download's verdict after it finished: block, hold, or record it (and alert)."""
+        """Act on a download's verdict after it finished: block, hold, or record it as passed."""
         h, name, cat = t["hash"], t["name"], t.get("category", "")
         action = self._action(verdict)
         if action == "block":
@@ -437,9 +427,6 @@ class Guard:
             return
         self.store.set_stage(h, name, cat, stage, verdict.level.label)
         self.store.log(h, name, stage, verdict.level.label, verdict.summary(), action, verdict.to_list())
-        if action == "alert":
-            await self.qbit.add_tags(h, SUSPICIOUS_TAG)
-            await self.notifier.send("Protectarr: suspicious download", f"{name}\n{verdict.summary()}")
 
     def _local_files(self, t: dict, files: list[dict]) -> list[tuple[str, str]]:
         save = self.cfg.to_local(t["save_path"])
@@ -475,8 +462,7 @@ class Guard:
         action = "blocked: " + ", ".join(steps)
         self.store.log(h, name, stage, level, summary, action, verdict.to_list(), indexer)
         source = f" (from {indexer})" if indexer else ""
-        await self.notifier.send(f"Protectarr blocked a {level} download",
-                                 f"{name}{source}\n{summary}\n{action}{self._link('/quarantine')}")
+        log.info("blocked a %s download: %s%s: %s; %s", level, name, source, summary, action)
 
     async def _remove(self, h: str, name: str, cat: str, stage: str, level: str, reason: str,
                       history: bool = True) -> tuple[str, str]:
@@ -522,9 +508,7 @@ class Guard:
         self.store.add_decision(h, name, cat, stage, level, summary, verdict.to_list(), qid, indexer)
         self.store.set_stage(h, name, cat, stage, "held")
         self.store.log(h, name, stage, level, summary, "held for your decision", verdict.to_list(), indexer)
-        await self.notifier.send(
-            "Protectarr is holding a suspicious download",
-            f"{name}\n{summary}\nIt stays stopped until you allow or deny it.{self._link('/review')}")
+        log.info("holding a suspicious download for your decision: %s: %s", name, summary)
 
     async def allow(self, decision_id: int, by: str = "allowed by you") -> None:
         d = self._pending(decision_id)
@@ -580,9 +564,6 @@ class Guard:
         if not d or d["status"] != "pending":
             raise LookupError("no pending decision with that id")
         return d
-
-    def _link(self, path: str) -> str:
-        return f"\nReview: {self.cfg.public_url.rstrip('/')}{path}" if self.cfg.public_url else ""
 
 
 def _find_file(folders: list[str], name: str) -> str | None:

@@ -13,7 +13,6 @@ from protectarr.db import Store
 from protectarr.filetype import sniff_bytes
 from protectarr.findings import Level
 from protectarr.guard import Guard
-from protectarr.notify import Notifier
 from protectarr.qbit import QbitClient
 from protectarr.quarantine import Quarantine
 from protectarr.rules import TorrentFile, check_metadata
@@ -36,8 +35,7 @@ def test_env_config_finds_every_arr_app():
         "LIDARR_URL": "http://lidarr:8686", "LIDARR_API_KEY": "l",
         "READARR_URL": "", "PROWLARR_URL": "http://prowlarr:9696", "PROWLARR_API_KEY": "p",
         "CLAMAV_HOST": "av", "CLAMAV_STREAM_MAX_MB": "100", "PATH_MAPPINGS": "/downloads:/data/downloads",
-        "CATEGORY_PROFILES": "audiobooks=book", "ACTION_SUSPICIOUS": "alert",
-        "APPRISE_URLS": "ntfy://a discord://b/c", "PROTECTARR_API_KEY": "k",
+        "CATEGORY_PROFILES": "audiobooks=book", "ACTION_SUSPICIOUS": "block", "PROTECTARR_API_KEY": "k",
     })
     arrs = {a.name: a for a in cfg.arr}
     assert set(arrs) == {"Sonarr", "Sonarr 4K", "Radarr", "Lidarr"}  # empty READARR_URL is skipped
@@ -46,8 +44,8 @@ def test_env_config_finds_every_arr_app():
     assert cfg.qbittorrent.password == "pw" and cfg.prowlarr.url == "http://prowlarr:9696"
     assert cfg.clamav.host == "av" and cfg.clamav.stream_max_mb == 100
     assert cfg.to_local("/downloads/x.mkv") == "/data/downloads/x.mkv"
-    assert cfg.rules.category_profiles == {"audiobooks": "book"} and cfg.actions["suspicious"] == "alert"
-    assert cfg.apprise_urls == ["ntfy://a", "discord://b/c"] and cfg.source == "environment variables"
+    assert cfg.rules.category_profiles == {"audiobooks": "book"} and cfg.actions["suspicious"] == "block"
+    assert cfg.source == "environment variables"
 
 
 def test_env_config_rejects_bad_values():
@@ -178,7 +176,7 @@ def stack(tmp_path):
     cfg.arr = [a.cfg for a in arrs]
     guard = Guard(cfg, store, QbitClient("http://qb", "u", "p", transport=httpx.MockTransport(qb.handler)),
                   arrs, Scanner(None, 25 * MB),
-                  Quarantine(cfg.quarantine_dir), Notifier([]), background_scans=True)
+                  Quarantine(cfg.quarantine_dir), background_scans=True)
     return guard, qb, sonarr, lidarr, tmp_path
 
 
@@ -203,7 +201,7 @@ async def test_discovered_categories_survive_an_arr_outage(stack):
     await guard.refresh_categories()
     sonarr.fail = 503
     guard2 = Guard(guard.cfg, Store(str(tmp / "cfg" / "db.sqlite")), guard.qbit, guard.arrs, guard.scanner,
-                   guard.quarantine, guard.notifier)
+                   guard.quarantine)
     await guard2.refresh_categories()
     assert guard2.watched("tv-sonarr") and guard2.arr_errors["Sonarr"] == "HTTP 503"
 

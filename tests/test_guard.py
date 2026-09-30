@@ -10,7 +10,6 @@ from protectarr.arr import ArrClient
 from protectarr.config import from_dict
 from protectarr.db import Store
 from protectarr.guard import Guard
-from protectarr.notify import Notifier
 from protectarr.qbit import QbitClient
 from protectarr.quarantine import Quarantine
 from protectarr.scanner import Scanner
@@ -83,7 +82,7 @@ def env(tmp_path):
     guard = Guard(cfg, Store(str(tmp_path / "cfg" / "db.sqlite")),
                   QbitClient("http://qb", "u", "p", transport=httpx.MockTransport(qb.handler)),
                   [ArrClient(cfg.arr[0], transport=httpx.MockTransport(sonarr.handler))],
-                  Scanner(None, 25 * MB), Quarantine(cfg.quarantine_dir), Notifier([]))
+                  Scanner(None, 25 * MB), Quarantine(cfg.quarantine_dir))
     return guard, qb, sonarr, tmp_path
 
 
@@ -167,13 +166,9 @@ async def test_readded_blocked_torrent_is_removed_again(env):
     assert qb.called("/torrents/delete")
 
 
-async def test_alert_mode_tags_instead_of_blocking(env):
-    guard, qb, sonarr, _ = env
-    guard.cfg.actions["suspicious"] = "alert"
-    qb.add("hhh", "Show.S01E05", [("Show.S01E05.wmv", 400 * MB)])
-    await guard.poll()
-    assert qb.called("/torrents/addTags") == [{"hashes": "hhh", "tags": "protectarr-suspicious"}]
-    assert not qb.called("/torrents/delete") and not sonarr.deleted
+def test_old_alert_action_now_holds():
+    cfg = from_dict({"actions": {"suspicious": "alert"}})
+    assert cfg.actions["suspicious"] == "hold"
 
 
 async def test_suspicious_held_then_allowed(env):

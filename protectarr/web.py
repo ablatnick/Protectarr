@@ -24,7 +24,6 @@ from .config import ARR_KINDS, Config, apply_connections, connections_of, merge_
 from .db import Store
 from .guard import Guard
 from .login import Logins
-from .notify import Notifier
 from .qbit import QbitClient
 from .quarantine import Quarantine
 from .scanner import Scanner
@@ -55,7 +54,6 @@ def build_guard(cfg: Config) -> Guard:
         [ArrClient(a) for a in cfg.arr],
         Scanner(clamd, cfg.clamav.stream_max_mb * 1024 * 1024, cfg.rules.allow_archives, cfg.clamav.scan_media),
         Quarantine(cfg.quarantine_dir, os.path.join(cfg.data_dir, "quarantine-records")),
-        Notifier(cfg.apprise_urls),
         background_scans=True,
     )
 

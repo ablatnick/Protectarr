@@ -49,9 +49,8 @@ rules:
   extra_blocked_extensions: []
 
 # What to do per verdict:
-#   block: quarantine files, remove the download, blocklist it in the *arr app, notify you
-#   hold:  stop it, lock away any files, notify you, and wait for Allow/Deny on the Review page
-#   alert: only tag it and notify you
+#   block: quarantine files, remove the download, blocklist it in the *arr app
+#   hold:  stop it, lock away any files, and wait for Allow/Deny on the Review page
 actions:
   malicious: block
   suspicious: hold
@@ -66,10 +65,7 @@ quarantine_dir: /quarantine
 data_dir: /config
 poll_seconds: 5
 
-# Any Apprise URL: discord://..., tgram://..., ntfy://..., mailto://...
-apprise_urls: []
-
-# How you open the web UI, used for "Review" links in notifications.
+# How you open the web UI, if that's through a reverse proxy (so its form posts are accepted).
 public_url: http://your-server:9797
 
 # The web UI password (HTTP Basic, any username); hooks pass it as ?key=.
