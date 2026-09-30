@@ -192,7 +192,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 - **qBittorrent only**, for now. Transmission and Deluge support is planned.
 - **Keep the UI on your LAN** (or behind a VPN or reverse proxy with its own login), and set `PROTECTARR_API_KEY`. Behind a reverse proxy, set `PUBLIC_URL` to the address you open it on.
 - **Failed qBittorrent logins back off** (1 minute, doubling up to 15), because qBittorrent bans an address after 5 failures. Saving the Settings page retries straight away.
--  **CAN FAIL** Protectarr can fail or make mistakes! Protectarr is designed to mitigate risks with torrenting. Even though this container has underwent numerous tests there is still a possibility of failure. By downloading this container you are also agreeing that you understand the risk of failure!
+-  **CAN FAIL** Protectarr can fail or make mistakes! Protectarr is designed to mitigate risks with torrenting. Even though this container has underwent numerous tests there is still a possibility of failure. By downloading this container you understand that this is not your antivirus solution, it is intended as just another layer to protect you. 
 
 ## Development
 
