@@ -2,7 +2,7 @@
 
 # Protectarr
 
-Scared to torrent due to security risks? Worry no more (or at least worry less)! Protectarr stands in between your machine and torrent files. I can not take full credit for this creation. As my coding skills are lacking I relied on Claude for a majority of the coding. Sure I could have taken the time and coded this myself. Although, after a recent scare in my own arr stack and suspicious files downloading onto my homelab. I felt the sooner something like this is created the better! This whole project is open source, please make changes and make your own version of this project! In a world where everything requires a subscription owning your own stuff becomes ever increasingly difficult. I hope this project helps to get homelabbing and owning your own media out there, by adding a little more security and giving people a little more peace of mind.
+Scared to torrent due to security risks? Worry no more (or at least worry less)! Protectarr stands in between your machine and torrent files. I can not take full credit for this creation. As my coding skills are lacking I relied on Claude for a majority of the coding. Sure I could have taken the time and coded this myself (which I have very little of due to being a college student). Although, after a recent scare in my own arr stack and suspicious files downloading onto my homelab. I felt the sooner something like this is created the better! This whole project is open source, please make changes and make your own version of this project! In a world where everything requires a subscription owning your own stuff becomes ever increasingly difficult. I hope this project helps to get homelabbing and owning your own media out there, by adding a little more security and giving people a little more peace of mind.
 
 Protectarr stops fake and malicious torrent releases before they reach your media library. It sits beside qBittorrent and your *arr apps (Sonarr, Radarr, Lidarr, Readarr, Whisparr, with Prowlarr for indexer reports), checks every download they grab, and has the *arr app blocklist anything bad and search for a different release.
 
@@ -146,7 +146,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `POLL_SECONDS` | `5` | How often qBittorrent is checked |
 | `QUARANTINE_DIR` / `DATA_DIR` | `/quarantine` / `/config` | |
 
-## Known limits
+## Known limits/DISCLAIMER
 
 - **It protects a media pipeline; it is not an antivirus.** It is built to catch fake and bait releases. It cannot make cracked software safe, and a brand-new trojan that ClamAV doesn't know yet will pass the signature check. (It will still be caught if it's a program pretending to be a video.)
 - **Import race.** Sonarr/Radarr can import a finished download before the content scan runs. Protectarr polls every few seconds and the finished hook is instant, and most bait is caught from the file list before it downloads, so this is rare.
@@ -154,6 +154,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 - **qBittorrent only**, for now. Transmission and Deluge support is planned.
 - **Keep the UI on your LAN** (or behind a VPN or reverse proxy with its own login), and set `PROTECTARR_API_KEY`. Behind a reverse proxy, set `PUBLIC_URL` to the address you open it on.
 - **Failed qBittorrent logins back off** (1 minute, doubling up to 15), because qBittorrent bans an address after 5 failures. Saving the Settings page retries straight away.
+-  **CAN FAIL** Protectarr can fail or make mistakes! Protectarr is designed to mitigate any risks with torrenting. Even though this container has underwent numerous tests there is still a possibility of failure. By downloading this container you are also agreeing that you understand the risks!
 
 ## Development
 
