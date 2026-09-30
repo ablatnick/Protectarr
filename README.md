@@ -131,14 +131,6 @@ Protectarr works alongside these. None are required except qBittorrent and at le
 | Whisparr | Adult content | [Whisparr/Whisparr](https://github.com/Whisparr/Whisparr) |
 | Prowlarr | Manages indexers for all of the above; connect it to Protectarr to see which indexers send bad releases | [Prowlarr/Prowlarr](https://github.com/Prowlarr/Prowlarr) |
 
-**Helpers**
-
-| Container | Why | GitHub |
-|---|---|---|
-| Unpackerr | Extracts scene RAR releases so the *arr apps can import them. Use it with `ALLOW_ARCHIVES=true`; Protectarr still checks archives for passwords and programs | [Unpackerr/unpackerr](https://github.com/Unpackerr/unpackerr) |
-| FlareSolverr | Gets Prowlarr past Cloudflare checks on some indexers | [FlareSolverr/FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) |
-| qbit_manage | Tags, cleans up and manages torrents in qBittorrent. It can't release a download Protectarr is holding: Protectarr stops it again until you choose Allow | [StuffAnThings/qbit_manage](https://github.com/StuffAnThings/qbit_manage) |
-
 ## Web UI
 
 `http://your-server:9797`, protected by `PROTECTARR_API_KEY` (log in with any username and that password). After the first login you can set your own username and password under Settings > Login; from then on the API key only works for qBittorrent hooks and the JSON API, not the pages. Without `PROTECTARR_API_KEY`, setting a login protects the page and generates a key for the hooks, shown on the Settings page. Locked out? Set `PROTECTARR_RESET_LOGIN=true`, restart, log in with the API key, and remove the variable again. Repeated wrong passwords make an address wait a few minutes.
