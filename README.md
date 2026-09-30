@@ -98,8 +98,10 @@ The Indexers page works without Prowlarr too: the indexer comes from the *arr ap
 
 - **Options > Downloads > Keep incomplete torrents in:** a separate folder, so half-finished files are never mistaken for finished ones.
 - **Options > Downloads > Run external program**, so Protectarr reacts instantly instead of within a few seconds. The Settings page shows the exact commands for your setup:
-  - on torrent added: `curl -fsS "http://your-server:9797/api/hook/added?hash=%I&key=YOUR_PASSWORD"`
-  - on torrent finished: `curl -fsS "http://your-server:9797/api/hook/finished?hash=%I&key=YOUR_PASSWORD"`
+  - on torrent added: `curl -fsS "http://your-server:9797/api/hook/added?hash=%I&key=YOUR_API_KEY"`
+  - on torrent finished: `curl -fsS "http://your-server:9797/api/hook/finished?hash=%I&key=YOUR_API_KEY"`
+
+  `YOUR_API_KEY` is `PROTECTARR_API_KEY`, or the generated key shown on the Settings page if you didn't set one.
 
   (The linuxserver.io qBittorrent image includes `curl`.)
 
@@ -157,6 +159,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 |---|---|---|
 | `QBIT_URL` | empty | qBittorrent Web UI, e.g. `http://qbittorrent:8080`. Nothing contacts qBittorrent until this (or the Settings page) is set |
 | `QBIT_USERNAME` / `QBIT_PASSWORD` | `admin` / empty | |
+| `QBIT_RESUME_AFTER_CHECK` | `true` | Start torrents that qBittorrent's stop condition held once their file list passes |
 | `QBIT_RESUME_OTHER_CATEGORIES` | `true` | Start new torrents in other categories that qBittorrent's stop condition held (only ones added in the last 2 minutes, or while Protectarr was down) |
 | `QBIT_CATEGORIES` | empty | Check only these categories instead of the ones read from the *arr apps |
 | `<APP>_URL`, `<APP>_API_KEY` | | `<APP>` is `SONARR`, `RADARR`, `LIDARR`, `READARR` or `WHISPARR`, optionally with a suffix (`RADARR_4K_URL`) |
@@ -164,6 +167,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `PROWLARR_URL`, `PROWLARR_API_KEY` | empty | |
 | `CLAMAV_ENABLED` | `true` | |
 | `CLAMAV_HOST` / `CLAMAV_PORT` | empty / `3310` | clamd to scan with, e.g. `clamav` or `your-server-ip` |
+| `CLAMAV_TIMEOUT` | `120` | Seconds to wait for ClamAV to scan one file |
 | `CLAMAV_STREAM_MAX_MB` | `25` | Largest file sent to ClamAV; keep it at or below clamd's `StreamMaxLength` |
 | `CLAMAV_SCAN_MEDIA` | `false` | Also send verified real video/audio files to ClamAV (their real type is always checked). Slow for albums and season packs |
 | `ACTION_MALICIOUS` / `ACTION_SUSPICIOUS` | `block` / `hold` | `block` or `hold` |
@@ -179,6 +183,9 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `POLL_SECONDS` | `5` | How often qBittorrent is checked |
 | `EARLY_CHECKS` | `true` | Check files while they download (real type from the first piece, full scan as each file finishes) |
 | `QUARANTINE_DIR` / `DATA_DIR` | `/quarantine` / `/config` | |
+| `PORT` | `9797` | Port the web UI listens on inside the container |
+| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING` or `ERROR` |
+| `PROTECTARR_CONFIG` | `/config/config.yml` | Where to look for the optional config file |
 
 ## Known limits/DISCLAIMER
 
@@ -190,7 +197,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 - **Torrents keep being checked after their category changes**, for example by an *arr app's "category after import".
 - **Notifications: coming soon.** Protectarr doesn't send alerts (Discord, Telegram, ntfy, email) yet. For now, check the Activity and Review pages (Review shows a badge when something is waiting for you), or watch the container log, which records every block and hold.
 - **qBittorrent only**, for now. Transmission and Deluge support is planned.
-- **Keep the UI on your LAN** (or behind a VPN or reverse proxy with its own login), and set `PROTECTARR_API_KEY`. Behind a reverse proxy, set `PUBLIC_URL` to the address you open it on.
+- **Keep the UI on your LAN** (or behind a VPN or reverse proxy with its own login), and set `PROTECTARR_API_KEY` or your own login. Wrong passwords lock out an address for a few minutes; behind a reverse proxy that address is the proxy's, so repeated failures there make everyone wait. Behind a reverse proxy, set `PUBLIC_URL` to the address you open it on.
 - **Failed qBittorrent logins back off** (1 minute, doubling up to 15), because qBittorrent bans an address after 5 failures. Saving the Settings page retries straight away.
 -  **CAN FAIL** Protectarr can fail or make mistakes! Protectarr is designed to mitigate risks with torrenting. Even though this container has underwent numerous tests there is still a possibility of failure. By downloading this container you understand that this is not your antivirus solution, it is intended as just another layer to protect you. 
 

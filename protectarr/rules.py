@@ -34,7 +34,7 @@ LURE_EXT = {".url", ".html", ".htm", ".website", ".webloc", ".pdf", ".docx", ".d
 MUSIC_SIDECAR_EXT = {".cue", ".log", ".m3u", ".m3u8", ".accurip", ".pdf", ".md5", ".ffp"} | VIDEO_EXT
 ARCHIVE_EXT = {".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".cab", ".arj"}
 DISK_IMAGE_EXT = {".iso", ".img", ".vhd", ".vhdx"}
-RTLO = "‮"
+RTLO = "\u202e"
 # Characters that make the end of a name display in a different order: right-to-left override, embedding, isolate.
 BIDI_TRICKS = (RTLO, "\u202b", "\u2067")
 # Full Blu-ray and DVD rips: the disc's own structure files, which are not suspicious inside these folders.

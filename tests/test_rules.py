@@ -33,7 +33,7 @@ def test_shortcut_file():
 
 
 def test_rtlo_trick():
-    v = check_metadata([F("Movie‮vkm.exe", 700 * MB)], MIN)
+    v = check_metadata([F("Movie\u202evkm.exe", 700 * MB)], MIN)
     assert "rtlo" in codes(v)
 
 

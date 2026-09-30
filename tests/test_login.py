@@ -132,3 +132,21 @@ def test_cross_site_login_change_refused(env):  # noqa: F811
                                         "new_password": "evil-pass", "confirm_password": "evil-pass"},
                auth=("x", "first-key"), headers={"origin": "http://evil.example"})
     assert r.status_code == 403 and guard.store.get_setting("login") is None
+
+
+def test_locked_out_address_cannot_find_the_right_password(env):  # noqa: F811
+    guard, *_ = env
+    c = client_for(guard)
+    change(c, ("x", "first-key"), current_password="first-key", username="alec",
+           new_password="the-real-pw", confirm_password="the-real-pw")
+    for i in range(10):
+        assert c.get("/", auth=("alec", f"guess{i}")).status_code == 401
+    # Locked: even the right password is refused, so guessing can't continue in the background.
+    assert c.get("/", auth=("alec", "the-real-pw")).status_code == 429
+
+
+def test_wrong_api_keys_count_as_failed_logins(env):  # noqa: F811
+    guard, *_ = env
+    c = client_for(guard)
+    codes = [c.get(f"/api/events?key=guess{i}").status_code for i in range(11)]
+    assert codes[:10] == [401] * 10 and codes[10] == 429

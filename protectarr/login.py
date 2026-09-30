@@ -65,11 +65,19 @@ class Logins:
         self.store.set_setting("login", None)
         self._verified.clear()
 
+    def _token(self, login: dict, username: str, password: str) -> bytes:
+        return hashlib.sha256(f"{login['password']}\0{username}\0{password}".encode()).digest()
+
+    def cached(self, username: str, password: str) -> bool:
+        """Already verified since the login was last changed (cheap; no hashing)."""
+        login = self.get()
+        return bool(login) and self._token(login, username, password) in self._verified
+
     def check(self, username: str, password: str) -> bool:
         login = self.get()
         if not login:
             return False
-        token = hashlib.sha256(f"{login['password']}\0{username}\0{password}".encode()).digest()
+        token = self._token(login, username, password)
         if token in self._verified:
             return True
         ok = hmac.compare_digest(username.encode(), login["username"].encode()) and \

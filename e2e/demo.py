@@ -73,10 +73,10 @@ EVENTS = [
         "Harborlight.S01E03.wmv")], "TorrentHaven (Prowlarr)"),
     (20 * H, "b1", "Midnight.Orchard.S02E08.1080p.WEB.H264-KITE", "content", "clean", "clean", "allow", [], ""),
     (26 * H, "b2", "Iron.Coast.2024.2160p.WEB-DL.DV.HDR.H265-NOVA", "metadata", "malicious",
-     "hidden right-to-left character disguises the real extension of 'Iron.Coast.2024.2160p‮vkm.scr'",
+     "hidden right-to-left character disguises the real extension of 'Iron.Coast.2024.2160p\u202evkm.scr'",
      "blocked: removed and blocklisted in Radarr",
      [f("malicious", "rtlo", "hidden right-to-left character disguises the real extension of "
-       "'Iron.Coast.2024.2160p‮vkm.scr'", "Iron.Coast.2024.2160p‮vkm.scr")], "FreshReleases (Prowlarr)"),
+       "'Iron.Coast.2024.2160p\u202evkm.scr'", "Iron.Coast.2024.2160p\u202evkm.scr")], "FreshReleases (Prowlarr)"),
 ]
 
 # (hash, name, category, stage, level, summary, findings, indexer, files to hold)

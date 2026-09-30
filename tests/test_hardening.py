@@ -2,8 +2,6 @@
 
 import asyncio
 import io
-import os
-import stat
 import time
 import zipfile
 
@@ -20,7 +18,7 @@ from protectarr.rules import TorrentFile, check_metadata
 from protectarr.scanner import Scanner
 from protectarr.web import create_app
 from conftest import EICAR, MKV, PE
-from test_integrations import FakeArr, ImportedSonarr, stack  # noqa: F401
+from test_integrations import ImportedSonarr, stack  # noqa: F401
 
 MB = 1024 * 1024
 
@@ -108,25 +106,41 @@ async def test_clamav_outage_then_infected_is_blocked_automatically(stack):
     assert guard.store.is_blocked("cd2") and "blocked automatically" in guard.store.events()[0]["action"]
 
 
-async def test_quarantine_folder_unusable_locks_files_in_place(stack):
+async def test_quarantine_folder_unusable_locks_files_in_place(stack, monkeypatch):
     """Quarantine can't be written (full disk, wrong owner): the file is renamed so no *arr app imports it."""
     guard, qb, _, _, tmp = stack
     await ready(guard)
     guard.cfg.actions["malicious"] = "hold"
-    guard.quarantine.fallback_root = tmp / "cfg" / "quarantine-records"  # as the service sets it up
-    qdir = tmp / "q"
-    qdir.mkdir()
-    os.chmod(qdir, stat.S_IRUSR | stat.S_IXUSR)
-    try:
-        f = put(tmp, "Show.S01E04.mkv", PE)
-        qb.add("qf1", "Show.S01E04", [("Show.S01E04.mkv", 400 * MB)], state="stalledUP", progress=1.0)
-        await guard.poll()
-        assert not f.exists() and (tmp / "dl" / ("Show.S01E04.mkv" + HELD_SUFFIX)).exists()
-        [d] = guard.store.pending_decisions()
-        await guard.allow(d["id"])
-        assert f.read_bytes() == PE  # and allowing puts it back
-    finally:
-        os.chmod(qdir, 0o755)
+
+    def full(*a, **k):
+        raise OSError(28, "No space left on device")
+    monkeypatch.setattr(guard.quarantine, "_move_all", full)
+    f = put(tmp, "Show.S01E04.mkv", PE)
+    qb.add("qf1", "Show.S01E04", [("Show.S01E04.mkv", 400 * MB)], state="stalledUP", progress=1.0)
+    await guard.poll()
+    assert not f.exists() and (tmp / "dl" / ("Show.S01E04.mkv" + HELD_SUFFIX)).exists()
+    [d] = guard.store.pending_decisions()
+    await guard.allow(d["id"])
+    assert f.read_bytes() == PE  # and allowing puts it back
+
+
+def test_quarantine_record_falls_back_when_the_folder_is_unwritable(tmp_path, monkeypatch):
+    f = tmp_path / "dl" / "x.mkv"
+    f.parent.mkdir()
+    f.write_bytes(b"X")
+    q = Quarantine(str(tmp_path / "q"), str(tmp_path / "records"))
+    real = Quarantine._write_record
+
+    def only_fallback(base, *a):
+        if str(base).startswith(str(tmp_path / "q")):
+            raise PermissionError(13, "Permission denied")
+        return real(base, *a)
+    monkeypatch.setattr(q, "_move_all", lambda *a: (_ for _ in ()).throw(OSError(13, "Permission denied")))
+    monkeypatch.setattr(Quarantine, "_write_record", staticmethod(only_fallback))
+    qid = q.store("h" * 40, "x", [("x.mkv", str(f))], {})
+    assert (tmp_path / "records" / qid / "record.json").exists() and not f.exists()
+    q.restore(qid)
+    assert f.read_bytes() == b"X"
 
 
 async def test_quarantine_failure_while_blocking_still_removes_the_files(stack, monkeypatch):
@@ -318,10 +332,10 @@ async def test_verified_media_is_not_sent_to_clamav_by_default(tmp_path):
 # ----- file names Windows would run --------------------------------------------------------------------------
 
 @pytest.mark.parametrize("name", [
-    "Setup.exe.", "Setup.exe ", "Setup.EXE", "Movie.mkv​.exe", "Codec.scf", "Play.chm", "Watch.one",
+    "Setup.exe.", "Setup.exe ", "Setup.EXE", "Movie.mkv\u200b.exe", "Codec.scf", "Play.chm", "Watch.one",
     "Player.msix", "Player.appx", "Play.xll", "Play.msc", "Play.vb", "Play.ws", "Play.settingcontent-ms",
     "Play.library-ms", "Play.xlsm", "Play.docm", "Play.py", "Play.pyw", "Play.gadget", "Play.hta ",
-    "Movie⁧vkm.exe⁩.mkv", "Movie‫vkm.scr",
+    "Movie\u2067vkm.exe\u2069.mkv", "Movie\u202bvkm.scr",
 ])
 def test_windows_runnable_names_are_malicious(name):
     v = check_metadata([TorrentFile("Movie.2024/Movie.mkv", 2000 * MB), TorrentFile("Movie.2024/" + name, MB)],

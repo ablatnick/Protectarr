@@ -4,6 +4,8 @@ version = "0.4.0"
 description = "Blocks fake and malicious torrent releases before they reach your media library."
 requires-python = ">=3.11"
 license = "MIT"
+readme = "README.md"
+authors = [{ name = "ablatnick" }]
 dependencies = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
@@ -16,6 +18,11 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.urls]
+Homepage = "https://github.com/ablatnick/Protectarr"
+Issues = "https://github.com/ablatnick/Protectarr/issues"
+Changelog = "https://github.com/ablatnick/Protectarr/blob/main/CHANGELOG.md"
 
 [project.scripts]
 protectarr = "protectarr.__main__:main"

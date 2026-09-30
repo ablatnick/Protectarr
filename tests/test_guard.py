@@ -1,6 +1,5 @@
 """End-to-end pipeline tests against fake qBittorrent and Sonarr APIs."""
 
-import json
 from urllib.parse import parse_qs
 
 import httpx

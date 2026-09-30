@@ -2,7 +2,7 @@
 
 ## 0.4.0
 
-- **Your own login:** after the first login (with `PROTECTARR_API_KEY`), set a username and password under Settings > Login. The password is stored as a salted PBKDF2 hash; the API key then only opens hooks and the JSON API. Without an API key, a login protects the page and a hook key is generated. `PROTECTARR_RESET_LOGIN=true` clears it if you're locked out, and repeated wrong passwords are slowed down.
+- **Your own login:** after the first login (with `PROTECTARR_API_KEY`), set a username and password under Settings > Login. The password is stored as a salted PBKDF2 hash; the API key then only opens hooks and the JSON API. Without an API key, a login protects the page and a hook key is generated. `PROTECTARR_RESET_LOGIN=true` clears it if you're locked out. After 10 wrong passwords or API keys in 5 minutes an address is refused (even with the right password) for a few minutes, and checking a password never holds up scanning.
 
 - **Removed: Apprise notifications and the `alert` action.** Notifications are coming back as a proper feature. `APPRISE_URLS` / `apprise_urls` are ignored, and an existing `alert` action is treated as `hold` (with a warning in the log). Blocks and holds are still recorded on the Activity page and in the log.
 
@@ -22,6 +22,7 @@ Fixes from a stress test of every way a bad file could get through:
 - With `ALLOW_ARCHIVES=true`, archives containing another archive or a disk image are suspicious.
 - **Fewer false alarms:** full Blu-ray/DVD rips (BDMV, VIDEO_TS), `.tif`/`.bmp`/`.gif` scans, `.opf` in audiobooks, RF64/BW64 WAVs over 4 GB, MP3s with leading padding, and `.ts` recordings that don't start on a packet.
 - A clean torrent stopped by qBittorrent just as Protectarr restarted is started after the restart, and torrents in other categories added while Protectarr was down are started too.
+- Two quarantine entries can no longer share a folder (the same torrent quarantined twice in one second).
 - `/api/settings` answers malformed input with 400 instead of 500, and rejects invalid ClamAV ports.
 
 ## 0.3.0

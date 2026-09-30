@@ -104,7 +104,11 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         except Exception:
             return "", ""
 
-    def _authorized(request: Request) -> bool:
+    def _credentials_given(request: Request) -> bool:
+        return bool(request.query_params.get("key") or request.headers.get("x-api-key")) or \
+            _basic(request) is not None
+
+    async def _authorized(request: Request) -> bool:
         login = logins.active
         if not cfg.api_key and not login:
             return True
@@ -119,7 +123,8 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         if creds is None:
             return False
         if login:
-            return logins.check(*creds)
+            # Deriving the hash takes a moment; don't hold up the poll loop and other requests meanwhile.
+            return logins.cached(*creds) or await asyncio.to_thread(logins.check, *creds)
         return bool(cfg.api_key) and hmac.compare_digest(creds[1].encode(), cfg.api_key.encode())
 
     def _same_origin(request: Request) -> bool:
@@ -137,14 +142,17 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
     @app.middleware("http")
     async def guard_requests(request: Request, call_next):
         address = request.client.host if request.client else ""
-        if request.url.path != "/health" and not _authorized(request):
-            if _basic(request) is not None:  # a wrong password, not just the browser asking
-                if logins.blocked(address):
-                    return JSONResponse({"detail": "too many failed logins; try again in a few minutes"},
-                                        status_code=429)
-                logins.failed(address)
-            return JSONResponse({"detail": "unauthorized"}, status_code=401,
-                                headers={"WWW-Authenticate": 'Basic realm="Protectarr"'})
+        if request.url.path != "/health":
+            given = _credentials_given(request)  # not just a browser's first, credential-less request
+            # Checked before the password, so an address that's guessing can't find out it guessed right.
+            if given and logins.blocked(address):
+                return JSONResponse({"detail": "too many failed logins; try again in a few minutes"},
+                                    status_code=429)
+            if not await _authorized(request):
+                if given:
+                    logins.failed(address)
+                return JSONResponse({"detail": "unauthorized"}, status_code=401,
+                                    headers={"WWW-Authenticate": 'Basic realm="Protectarr"'})
         if request.method == "POST" and not _same_origin(request):
             return JSONResponse({"detail": "cross-site request refused"}, status_code=403)
         return await call_next(request)
@@ -256,7 +264,7 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         form = {k: v[-1] for k, v in parse_qs((await request.body()).decode(), keep_blank_values=True).items()}
         current, login = form.get("current_password", ""), logins.get()
         if login:
-            ok = logins.check(login["username"], current)
+            ok = await asyncio.to_thread(logins.check, login["username"], current)
         else:
             ok = not cfg.api_key or hmac.compare_digest(current.encode(), cfg.api_key.encode())
         try:

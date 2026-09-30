@@ -215,7 +215,7 @@ def _bool(value: str) -> bool:
 
 
 def from_env(env: dict[str, str] | None = None) -> Config:
-    """Build the whole configuration from environment variables (see README, "Environment variables")."""
+    """Build the whole configuration from environment variables (see README, "Container settings")."""
     env = dict(os.environ if env is None else env)
     g = lambda k, d="": env.get(k, d).strip()  # noqa: E731
     cfg = Config(source="environment variables")

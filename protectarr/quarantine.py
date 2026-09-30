@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import secrets
 import shutil
 import stat
 import time
@@ -26,7 +27,8 @@ class Quarantine:
 
         When they can't be moved there, each file is renamed where it is (with HELD_SUFFIX) instead, so no
         *arr app imports it. Raises OSError only when neither works."""
-        qid = f"{time.strftime('%Y%m%d-%H%M%S')}-{torrent_hash[:8]}"
+        # Unique even for the same torrent twice in one second, so two entries never share a folder.
+        qid = f"{time.strftime('%Y%m%d-%H%M%S')}-{torrent_hash[:8]}-{secrets.token_hex(3)}"
         base = self.root / qid
         present = [(rel, src) for rel, src in files if os.path.isfile(src)]
         try:
