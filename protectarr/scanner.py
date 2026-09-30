@@ -32,11 +32,28 @@ class Scanner:
             v.extend(await self.scan_file(name, path, profile))
         return v
 
+    async def sniff_partial(self, name: str, path: str) -> Verdict:
+        """Check a file that is still downloading, from its first piece only: is it really what its name says?"""
+        kind = await asyncio.to_thread(filetype.sniff, path)
+        return self._type_findings(name, extension(name), kind)
+
     async def scan_file(self, name: str, path: str, profile: str = "tv") -> Verdict:
-        v = Verdict()
-        base = PurePosixPath(name).name
         ext = extension(name)
         kind = await asyncio.to_thread(filetype.sniff, path)
+        v = self._type_findings(name, ext, kind)
+
+        if kind in ("zip", "rar", "7z"):
+            container = profile == "book" and ext in filetype.CONTAINER_EXT
+            v.extend(await asyncio.to_thread(self._check_archive, name, path, kind, container))
+
+        # A file already known to be malicious needs no second opinion, and ClamAV can take a while.
+        if v.level < Level.MALICIOUS:
+            v.extend(await self._clamav(name, path, ext, kind))
+        return v
+
+    def _type_findings(self, name: str, ext: str, kind: str) -> Verdict:
+        v = Verdict()
+        base = PurePosixPath(name).name
 
         if kind in filetype.EXECUTABLE_KINDS:
             if ext in EXECUTABLE_EXT:
@@ -52,14 +69,6 @@ class Scanner:
             v.add(Level.SUSPICIOUS, "disguised_lure", f"'{base}' is really a {LURE_KINDS[kind]}", name)
         elif kind == "iso":
             v.add(Level.SUSPICIOUS, "disk_image", f"'{base}' is a disk image", name)
-
-        if kind in ("zip", "rar", "7z"):
-            container = profile == "book" and ext in filetype.CONTAINER_EXT
-            v.extend(await asyncio.to_thread(self._check_archive, name, path, kind, container))
-
-        # A file already known to be malicious needs no second opinion, and ClamAV can take a while.
-        if v.level < Level.MALICIOUS:
-            v.extend(await self._clamav(name, path, ext, kind))
         return v
 
     def _check_archive(self, name: str, path: str, kind: str, container: bool = False) -> Verdict:

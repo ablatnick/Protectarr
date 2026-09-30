@@ -104,6 +104,16 @@ class QbitClient:
             f.setdefault("index", i)
         return files
 
+    async def piece_states(self, torrent_hash: str) -> list[int]:
+        """One entry per piece: 0 not downloaded, 1 downloading, 2 downloaded."""
+        r = await self._request("GET", "/torrents/pieceStates", params={"hash": torrent_hash})
+        r.raise_for_status()
+        return r.json()
+
+    async def first_last_piece_first(self, torrent_hash: str) -> None:
+        """Download each file's first and last pieces early (qBittorrent toggles this setting)."""
+        await self._post("/torrents/toggleFirstLastPiecePrio", {"hashes": torrent_hash})
+
     async def skip_files(self, torrent_hash: str, indexes: list[int]) -> None:
         await self._post("/torrents/filePrio", {"hash": torrent_hash, "id": "|".join(map(str, indexes)), "priority": 0})
 

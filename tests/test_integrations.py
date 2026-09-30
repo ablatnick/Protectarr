@@ -536,3 +536,115 @@ def test_review_errors_are_shown_not_a_crash(stack, monkeypatch):
     client = TestClient(create_app(guard.cfg, guard, start_worker=False))
     r = client.post(f"/review/{d['id']}/allow")
     assert r.status_code == 200 and "Allow failed: disk full" in r.text
+
+
+# ----- import race: checking while downloading, and cleaning up after an import ------------------------------
+
+async def test_disguised_program_caught_while_still_downloading(stack):
+    guard, qb, sonarr, _, tmp = stack
+    await guard.refresh_categories()
+    incomplete = tmp / "dl" / "incomplete"
+    f = incomplete / "Show.S02E01" / "Show.S02E01.mkv"
+    f.parent.mkdir(parents=True)
+    f.write_bytes(PE + b"\0" * 4096)  # only the first piece has arrived
+    qb.add("early1", "Show.S02E01", [("Show.S02E01/Show.S02E01.mkv", 900 * MB)], state="downloading", progress=0.02,
+           save="/downloads/complete")
+    qb.torrents["early1"]["download_path"] = "/downloads/incomplete"
+    qb.files["early1"][0].update(progress=0.02, piece_range=[0, 3599])
+    qb.pieces["early1"] = [2] + [0] * 3599
+    sonarr.queue = [{"id": 21, "downloadId": "EARLY1", "indexer": "BadTracker"}]
+    await guard.poll()  # file list passes; then the first piece shows what it really is
+    assert qb.called("/torrents/toggleFirstLastPiecePrio") == [{"hashes": "early1"}]
+    [e] = [e for e in guard.store.events() if e["stage"] == "early"]
+    assert e["level"] == "malicious" and "really a program" in e["summary"] and e["indexer"] == "BadTracker"
+    assert sonarr.deleted == [21] and not f.exists() and guard.store.quarantine_items()
+
+
+async def test_finished_extra_file_scanned_before_the_torrent_completes(stack):
+    guard, qb, _, _, tmp = stack
+    await guard.refresh_categories()
+    folder = tmp / "dl" / "Show.S02E02"
+    folder.mkdir(parents=True)
+    _zip(folder / "subs.zip", {"setup.exe": "MZ"})
+    (folder / "Show.S02E02.mkv").write_bytes(MKV)
+    qb.add("early2", "Show.S02E02", [("Show.S02E02/Show.S02E02.mkv", 900 * MB), ("Show.S02E02/subs.zip", 1 * MB)],
+           state="downloading", progress=0.4)
+    qb.files["early2"][0].update(progress=0.4, piece_range=[0, 99])
+    qb.files["early2"][1].update(progress=1.0, piece_range=[100, 100])
+    qb.pieces["early2"] = [2] * 40 + [0] * 60 + [2]
+    guard.cfg.rules.allow_archives = True  # so the file list passes; the zip's contents give it away
+    await guard.poll()
+    [e] = [e for e in guard.store.events() if e["stage"] == "early"]
+    assert "contains program files" in e["summary"] and qb.called("/torrents/delete")
+
+
+async def test_clean_download_is_only_scanned_once(stack, monkeypatch):
+    guard, qb, _, _, tmp = stack
+    await guard.refresh_categories()
+    guard.background_scans = False
+    folder = tmp / "dl" / "Show.S02E03"
+    folder.mkdir(parents=True)
+    (folder / "Show.S02E03.mkv").write_bytes(MKV)
+    (folder / "Show.S02E03.srt").write_bytes(b"1\n00:00:01,000 --> 00:00:02,000\nHi\n")
+    qb.add("once", "Show.S02E03", [("Show.S02E03/Show.S02E03.mkv", 400 * MB), ("Show.S02E03/Show.S02E03.srt", 100)],
+           state="downloading", progress=0.5)
+    qb.files["once"][1].update(progress=1.0)
+    await guard.poll()  # the subtitle finished first and is scanned now
+    scanned = []
+    real = guard.scanner.scan
+
+    async def spy(files, profile="tv"):
+        scanned.extend(n for n, _ in files)
+        return await real(files, profile)
+    monkeypatch.setattr(guard.scanner, "scan", spy)
+    qb.torrents["once"].update(state="stalledUP", progress=1.0)
+    await guard.poll()
+    assert scanned == ["Show.S02E03/Show.S02E03.mkv"]
+    assert guard.store.torrent("once")["content_level"] == "clean"
+
+
+class ImportedSonarr(FakeArr):
+    """Sonarr after it already imported the download: not in the queue, but in history and the library."""
+
+    def __init__(self):
+        super().__init__()
+        self.library = [{"id": 501, "path": "/tv/Show/Season 2/Show - S02E04.mkv"}]
+        self.failed = []
+
+    def handler(self, request):
+        path = request.url.path.removeprefix("/api/v3")
+        if path == "/history":
+            assert request.url.params["downloadId"] == "IMP1"
+            return httpx.Response(200, json={"records": [
+                {"id": 9001, "eventType": "downloadFolderImported", "downloadId": "IMP1", "seriesId": 7,
+                 "data": {"importedPath": "/tv/Show/Season 2/Show - S02E04.mkv"}},
+                {"id": 9000, "eventType": "grabbed", "downloadId": "IMP1", "seriesId": 7,
+                 "data": {"indexer": "BadTracker (Prowlarr)"}}]})
+        if path == "/episodefile" and request.method == "GET":
+            assert request.url.params["seriesId"] == "7"
+            return httpx.Response(200, json=self.library)
+        if path.startswith("/episodefile/") and request.method == "DELETE":
+            self.library = [f for f in self.library if f["id"] != int(path.rsplit("/", 1)[1])]
+            return httpx.Response(200)
+        if path.startswith("/history/failed/"):
+            self.failed.append(int(path.rsplit("/", 1)[1]))
+            return httpx.Response(200)
+        return super().handler(request)
+
+
+async def test_bad_download_already_imported_is_removed_from_the_library(stack):
+    guard, qb, _, _, tmp = stack
+    sonarr = ImportedSonarr()
+    guard.arrs[0].http._transport = httpx.MockTransport(sonarr.handler)
+    await guard.refresh_categories()
+    guard.background_scans = False
+    f = tmp / "dl" / "Show.S02E04" / "Show.S02E04.mkv"
+    f.parent.mkdir(parents=True)
+    f.write_bytes(PE)
+    qb.add("imp1", "Show.S02E04", [("Show.S02E04/Show.S02E04.mkv", 400 * MB)], state="stalledUP", progress=1.0)
+    await guard.poll()
+    assert sonarr.library == [] and sonarr.failed == [9000]  # deleted from the library, grab marked failed
+    assert qb.called("/torrents/delete")  # Sonarr no longer manages it, so Protectarr removes the torrent
+    e = guard.store.events()[0]
+    assert "had already imported it" in e["action"] and "deleted 1 imported file" in e["action"]
+    assert e["indexer"] == "BadTracker (Prowlarr)"

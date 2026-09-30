@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+
+- **Import race closed from both sides.**
+  - Files are checked while they download: qBittorrent is asked for each file's first and last pieces early, a file's real type is checked as soon as its first piece arrives, and each file is fully scanned (archives, ClamAV) the moment it finishes. A program disguised as a video is usually caught within seconds of the download starting, and at completion only unchecked files remain. Turn off with `EARLY_CHECKS=false`.
+  - If an *arr app imported a bad download before Protectarr caught it, Protectarr now deletes the imported library file through that app, marks the grab as failed (which blocklists the release and searches again) and removes the torrent. Before, it could only delete the torrent.
+
 ## 0.2.0
 
 - **Settings page:** enter the address and API key of qBittorrent, each *arr app, ClamAV and Prowlarr in the web UI, with live connection status and setup hints. Changes apply without a restart. Environment variables and the config file still work.

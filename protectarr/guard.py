@@ -24,6 +24,7 @@ SUSPICIOUS_TAG = "protectarr-suspicious"
 HELD_TAG = "protectarr-held"
 CATEGORY_REFRESH_SECONDS = 600
 RESUME_WINDOW_SECONDS = 120
+EARLY_CHECK_SECONDS = 10  # how often a downloading torrent's files are looked at
 MAX_CONTENT_ATTEMPTS = 3
 
 
@@ -38,6 +39,8 @@ class Guard:
         self._resume_until: dict[str, float] = {}
         self._others_seen: set[str] = set()
         self._content_failures: dict[str, int] = {}
+        # Per downloading torrent: files fully scanned / type-checked so far, and when it was last looked at.
+        self._early: dict[str, dict] = {}
         # Content scans can take a while (ClamAV); in the service they run beside the poll loop.
         self.background_scans = background_scans
         self._scan_slots = asyncio.Semaphore(max_scans)
@@ -182,7 +185,11 @@ class Guard:
             if row["metadata_level"] == "held":
                 return  # waiting for the user to allow or deny it
             await self._resume_if_stopped(t)
-            if not (is_complete(t) and row["content_level"] is None):
+            if row["content_level"] is not None:
+                return
+            if not is_complete(t):
+                if self.cfg.early_checks:
+                    await self.early_stage(t)
                 return
             if not self.background_scans:
                 try:
@@ -277,11 +284,60 @@ class Guard:
             self._resume_until.pop(h, None)
             await self.qbit.start(h)
 
+    async def early_stage(self, t: dict) -> None:
+        """Look at a torrent's files while it downloads (see Config.early_checks)."""
+        h = t["hash"]
+        st = self._early.setdefault(h, {"full": set(), "sniffed": set(), "asked_flp": False, "at": float("-inf")})
+        if time.monotonic() - st["at"] < EARLY_CHECK_SECONDS or t.get("state") in STOPPED_STATES:
+            return
+        st["at"] = time.monotonic()
+        if not st["asked_flp"] and not t.get("f_l_piece_prio"):
+            st["asked_flp"] = True
+            await self.qbit.first_last_piece_first(h)
+        files = [f for f in await self.qbit.files(h) if f.get("priority", 1) != 0 and f["index"] not in st["full"]]
+        waiting = [f for f in files if f.get("progress", 0) < 1 and f["index"] not in st["sniffed"]]
+        pieces = await self.qbit.piece_states(h) if waiting else []
+        # Unfinished files live in qBittorrent's "incomplete" folder when that's turned on.
+        folders = [self.cfg.to_local(p) for p in (t.get("download_path"), t["save_path"]) if p]
+        profile = self.profile(t.get("category", ""))
+        verdict = Verdict()
+        for f in files:
+            path = _find_file(folders, f["name"])
+            if not path:
+                continue
+            if f.get("progress", 0) >= 1:
+                verdict.extend(await self.scanner.scan_file(f["name"], path, profile))
+                st["full"].add(f["index"])
+                st["sniffed"].add(f["index"])
+            elif f["index"] not in st["sniffed"]:
+                first = (f.get("piece_range") or [0])[0]
+                if 0 <= first < len(pieces) and pieces[first] == 2:
+                    verdict.extend(await self.scanner.sniff_partial(f["name"], path))
+                    st["sniffed"].add(f["index"])
+        if verdict.level == Level.CLEAN:
+            return
+        action = self._action(verdict)
+        present = [(f["name"], p) for f in await self.qbit.files(h)
+                   if (p := _find_file(folders, f["name"]))]
+        if action == "block":
+            await self._block(t, "early", verdict, verdict.summary(), quarantine_files=True, files=present)
+        elif action == "hold":
+            await self._hold(t, "early", verdict, present)
+        elif not st.get("alerted"):
+            st["alerted"] = True
+            self.store.log(h, t["name"], "early", verdict.level.label, verdict.summary(), "alert", verdict.to_list())
+            await self.qbit.add_tags(h, SUSPICIOUS_TAG)
+            await self.notifier.send("Protectarr: suspicious download", f"{t['name']}\n{verdict.summary()}")
+
     async def content_stage(self, t: dict) -> None:
         h, name, cat = t["hash"], t["name"], t.get("category", "")
         files = await self.qbit.files(h)
+        # Files fully scanned while downloading needn't be scanned again, but if the release is blocked or held
+        # every file goes to quarantine, so nothing is left for the *arr app to import.
+        done = self._early.pop(h, {}).get("full", set())
         local = self._local_files(t, files)
-        verdict = await self.scanner.scan(local, self.profile(cat))
+        to_scan = self._local_files(t, [f for f in files if f.get("index") not in done])
+        verdict = await self.scanner.scan(to_scan, self.profile(cat))
         action = self._action(verdict)
         if action == "block":
             await self._block(t, "content", verdict, verdict.summary(), quarantine_files=True, files=local)
@@ -330,12 +386,14 @@ class Guard:
         """Remove the torrent (via the *arr app with blocklisting when it owns it) and remember the block.
         Returns (what was done, indexer the release came from)."""
         self._blocked_at[h] = time.monotonic()
+        self._early.pop(h, None)
         removal = await blocklist_everywhere(self.arrs, h)
-        if removal:
-            step = f"removed and blocklisted in {removal.app}"
+        if removal and not removal.imported:
+            step = removal.describe()  # the app removed it from qBittorrent too
         else:
+            # Not grabbed by an *arr app, or already imported (then the app no longer manages the torrent).
             await self.qbit.delete(h, delete_files=True)
-            step = "removed from qBittorrent"
+            step = (removal.describe() + "; " if removal else "") + "removed from qBittorrent"
         self.store.block_hash(h, name, reason)
         self.store.set_stage(h, name, cat, stage, level, blocked=True)
         return step, removal.indexer if removal else ""
@@ -396,6 +454,16 @@ class Guard:
 
     def _link(self, path: str) -> str:
         return f"\nReview: {self.cfg.public_url.rstrip('/')}{path}" if self.cfg.public_url else ""
+
+
+def _find_file(folders: list[str], name: str) -> str | None:
+    """Where a torrent file is on disk: its incomplete or its final folder, with or without ".!qB"."""
+    import os
+    for folder in folders:
+        for candidate in (posixpath.join(folder, name), posixpath.join(folder, name) + ".!qB"):
+            if os.path.isfile(candidate):
+                return candidate
+    return None
 
 
 def _odd_answer(exc: Exception) -> str:

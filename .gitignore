@@ -12,3 +12,4 @@ dist/
 /clamav/
 /config.yml
 e2e/work/
+e2e/.cache/

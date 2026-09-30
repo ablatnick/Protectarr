@@ -19,7 +19,7 @@ It's aimed at the fake releases that turn up on public indexers: a "new episode"
 - WMV/ASF "codec" bait
 - videos far too small for what they claim to be (an episode under 30 MB, a movie under 300 MB)
 
-**After the download finishes, before import.** Protectarr reads each file's first bytes to find its real type, so a Windows program renamed `.mkv` is caught. It lists archives without extracting them (and flags password-protected ones), and sends every non-media file to ClamAV.
+**While it downloads, and before import.** Protectarr reads each file's first bytes as soon as they arrive to find its real type, so a Windows program renamed `.mkv` is caught. It lists archives without extracting them (and flags password-protected ones), and sends every non-media file to ClamAV.
 
 Each *arr app gets rules that fit what it downloads. Lidarr releases may contain `.cue`, `.log` and booklet PDFs, and Readarr releases may contain EPUB, PDF and audiobook files, so neither is mistaken for a fake video.
 
@@ -144,12 +144,13 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `PUBLIC_URL` | empty | How you open the UI, for links in notifications |
 | `APPRISE_URLS` | empty | Space-separated Apprise URLs |
 | `POLL_SECONDS` | `5` | How often qBittorrent is checked |
+| `EARLY_CHECKS` | `true` | Check files while they download (real type from the first piece, full scan as each file finishes) |
 | `QUARANTINE_DIR` / `DATA_DIR` | `/quarantine` / `/config` | |
 
 ## Known limits/DISCLAIMER
 
 - **It protects a media pipeline; it is not an antivirus.** It is built to catch fake and bait releases. It cannot make cracked software safe, and a brand-new trojan that ClamAV doesn't know yet will pass the signature check. (It will still be caught if it's a program pretending to be a video.)
-- **Import race.** Sonarr/Radarr can import a finished download before the content scan runs. Protectarr polls every few seconds and the finished hook is instant, and most bait is caught from the file list before it downloads, so this is rare.
+- **Import race.** Sonarr/Radarr import a download as soon as it finishes, so a check that runs after completion can lose that race. Protectarr closes it from both sides: while a torrent downloads it asks qBittorrent for each file's first and last pieces early, checks each file's real type as soon as its first piece arrives, and fully scans every file the moment it finishes, so there's almost nothing left to check at completion. And if an *arr app still imports something bad first (for example while Protectarr was down), Protectarr deletes the imported file through that app, marks the grab as failed so the release is blocklisted and searched again, and removes the torrent. Lidarr and Readarr are handled the same way.
 - **Large files and ClamAV.** Only files up to `CLAMAV_STREAM_MAX_MB` go to ClamAV. Big files that are verified real videos or audio are not sent; they're rarely the carrier.
 - **qBittorrent only**, for now. Transmission and Deluge support is planned.
 - **Keep the UI on your LAN** (or behind a VPN or reverse proxy with its own login), and set `PROTECTARR_API_KEY`. Behind a reverse proxy, set `PUBLIC_URL` to the address you open it on.

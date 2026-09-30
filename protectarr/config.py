@@ -100,6 +100,10 @@ class Config:
     rules: RulesConfig = field(default_factory=RulesConfig)
     path_mappings: list[PathMapping] = field(default_factory=list)
     actions: dict[str, str] = field(default_factory=lambda: {"malicious": "block", "suspicious": "hold"})
+    # Check files while they download: each file's real type as soon as its first piece arrives, and a full
+    # scan of each file as soon as it finishes. Most bad releases are then caught before the torrent completes,
+    # which leaves Sonarr/Radarr almost no window to import them first.
+    early_checks: bool = True
     quarantine_dir: str = "/quarantine"
     data_dir: str = "/config"
     poll_seconds: float = 5.0
@@ -151,7 +155,8 @@ def from_dict(raw: dict) -> Config:
         rules=RulesConfig(**raw.get("rules", {})),
         path_mappings=[PathMapping(**m) for m in raw.get("path_mappings", [])],
     )
-    for key in ("quarantine_dir", "data_dir", "poll_seconds", "apprise_urls", "port", "api_key", "public_url"):
+    for key in ("quarantine_dir", "data_dir", "poll_seconds", "apprise_urls", "port", "api_key", "public_url",
+                "early_checks"):
         if key in raw:
             setattr(cfg, key, raw[key])
     if "actions" in raw:
@@ -244,6 +249,8 @@ def from_env(env: dict[str, str] | None = None) -> Config:
     for level in ("malicious", "suspicious"):
         if g(f"ACTION_{level.upper()}"):
             cfg.actions[level] = g(f"ACTION_{level.upper()}").lower()
+    if "EARLY_CHECKS" in env:
+        cfg.early_checks = _bool(env["EARLY_CHECKS"])
     cfg.quarantine_dir = g("QUARANTINE_DIR", cfg.quarantine_dir)
     cfg.data_dir = g("DATA_DIR", cfg.data_dir)
     cfg.poll_seconds = float(g("POLL_SECONDS", str(cfg.poll_seconds)))

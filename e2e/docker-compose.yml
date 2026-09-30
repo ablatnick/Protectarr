@@ -20,7 +20,7 @@ services:
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
     environment: *ids
-    volumes: ["./work/sonarr:/config", "./work/downloads:/downloads"]
+    volumes: ["./work/sonarr:/config", "./work/downloads:/downloads", "./work/tv:/tv"]
     ports: ["127.0.0.1:18989:8989"]
 
   lidarr:
@@ -34,6 +34,12 @@ services:
     environment: *ids
     volumes: ["./work/prowlarr:/config"]
     ports: ["127.0.0.1:19696:9696"]
+
+  # Serves test .torrent files to Sonarr, the way an indexer would.
+  files:
+    image: python:3.12-slim
+    command: ["python", "-m", "http.server", "8000", "--directory", "/srv"]
+    volumes: ["./work/torrents:/srv:ro"]
 
   clamav:
     image: clamav/clamav:stable

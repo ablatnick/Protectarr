@@ -8,7 +8,7 @@
   <tr>
     <td class="muted when">{{ d.ts | ago }}</td>
     <td class="name">{{ d.name }}{% if d.indexer %}<div class="muted">from {{ d.indexer }}</div>{% endif %}</td>
-    <td>{{ "before download" if d.stage == "metadata" else "after download" }}</td>
+    <td>{{ {"metadata": "before download", "early": "while downloading"}.get(d.stage, "after download") }}</td>
     <td>{% set shown = d.findings | rejectattr("level", "equalto", "clean") | list %}
       <ul class="f">{% for f in shown[:6] %}<li class="{{ f.level }}">{{ f.message }}</li>{% endfor %}</ul></td>
     <td style="white-space:nowrap">

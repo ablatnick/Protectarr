@@ -23,6 +23,7 @@ class FakeQbit:
     def __init__(self):
         self.torrents = {}
         self.files = {}
+        self.pieces = {}
         self.calls = []
 
     def add(self, h, name, files, state="downloading", progress=0.0, save="/downloads", category="tv-sonarr"):
@@ -46,6 +47,8 @@ class FakeQbit:
             return httpx.Response(200, json=items)
         if path == "/torrents/files":
             return httpx.Response(200, json=self.files[request.url.params["hash"]])
+        if path == "/torrents/pieceStates":
+            return httpx.Response(200, json=self.pieces.get(request.url.params["hash"], [0] * 8))
         if path == "/torrents/delete":
             self.torrents.pop(form["hashes"][0], None)
         return httpx.Response(200, text="")

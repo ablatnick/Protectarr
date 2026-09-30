@@ -157,7 +157,7 @@ def seed_configs() -> None:
     if WORK.exists() and not os.environ.get("E2E_KEEP_WORK"):
         shutil.rmtree(WORK)
     for d in ("qbittorrent/qBittorrent", "sonarr", "lidarr", "prowlarr", "protectarr", "quarantine",
-              "downloads/complete", "downloads/incomplete"):
+              "downloads/complete", "downloads/incomplete", "tv", "torrents"):
         (WORK / d).mkdir(parents=True, exist_ok=True)
     salt = os.urandom(16)
     digest = hashlib.pbkdf2_hmac("sha512", QB_PASSWORD.encode(), salt, 100000, 64)
@@ -201,6 +201,92 @@ def event_for(name: str, predicate=lambda e: True):
 
 
 # ----- scenarios -------------------------------------------------------------------------------------------
+
+def sample_video() -> bytes:
+    """A real 20-minute video with sound (so Sonarr accepts and imports it), made once with ffmpeg and cached."""
+    cache = HERE / ".cache"
+    video = cache / "sample-av.mkv"
+    if not video.exists():
+        cache.mkdir(exist_ok=True)
+        print("   generating a test video with ffmpeg (once)")
+        subprocess.run(["docker", "run", "--rm", "-v", f"{cache}:/out", "lscr.io/linuxserver/ffmpeg:latest",
+                        "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15",
+                        "-f", "lavfi", "-i", "sine=frequency=440", "-t", "1200",  # Sonarr won't import silent video
+                        "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "300k", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-b:a", "32k", "-y", "/out/sample-av.mkv"], check=True)
+    return video.read_bytes()
+
+
+def import_race(q: "Qbit") -> None:
+    """Protectarr is down while Sonarr grabs and imports a release that has malware in an extra file. When
+    Protectarr comes back, it must remove the imported file through Sonarr, blocklist the release and remove
+    the torrent."""
+    print("== import race: Sonarr imports a bad release while Protectarr is down")
+    key = {"X-Api-Key": KEYS["sonarr"]}
+    api = lambda path, data=None, method=None: request(f"{SONARR}/api/v3{path}", data=data, headers=key,  # noqa
+                                                        method=method, timeout=60)
+    try:
+        found = api("/series/lookup?term=tvdb%3A81189")  # Breaking Bad; Sonarr looks it up online
+        assert found, "no lookup result"
+    except Exception as exc:
+        check("import race (SKIPPED: Sonarr can't look up series online)", True, repr(exc))
+        return
+    api("/rootfolder", data={"path": "/tv"})
+    profile = api("/qualityprofile")[0]["id"]
+    series = api("/series", data={**found[0], "qualityProfileId": profile, "rootFolderPath": "/tv", "monitored": True,
+                                  "seasonFolder": True, "addOptions": {"monitor": "all",
+                                                                       "searchForMissingEpisodes": False}})
+    ep = wait("episodes", lambda: next((e for e in api(f"/episode?seriesId={series['id']}")
+                                        if e["seasonNumber"] == 1 and e["episodeNumber"] == 1), None), 120, 3)
+
+    name = "Breaking.Bad.S01E01.1080p.WEB.H264-E2ETEST"
+    files = [(f"{name}.mkv", sample_video()), ("readme.txt", EICAR)]
+    blob, h = make_torrent(name, files)
+    (WORK / "torrents" / "e2e.torrent").write_bytes(blob)
+    for rel, content in files:  # already on disk, so qBittorrent finds it complete without any peers
+        p = WORK / "downloads" / "incomplete" / name / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(content)
+
+    compose("stop", "protectarr")
+    q.call("/app/setPreferences", {"json": json.dumps({"torrent_stop_condition": "None"})})
+    pushed = api("/release/push", data={"title": name, "downloadUrl": "http://files:8000/e2e.torrent",
+                                        "protocol": "torrent", "size": 1_500_000_000, "indexer": "E2E Indexer",
+                                        "publishDate": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+    pushed = pushed[0] if isinstance(pushed, list) else pushed
+    if not pushed.get("approved", True):
+        check("import race: Sonarr accepts the pushed release", False, "; ".join(pushed.get("rejections", [])))
+        compose("start", "protectarr")
+        return
+
+    def imported():
+        t = q.torrent(h)
+        if t and t["progress"] < 1 and t["state"] not in ("checkingDL", "checkingResumeData"):
+            q.call("/torrents/recheck", {"hashes": h})
+        api("/command", data={"name": "RefreshMonitoredDownloads"})
+        return api(f"/episode/{ep['id']}")["hasFile"]
+    try:
+        wait("Sonarr to grab and import it", imported, 360, 10)
+    except TimeoutError as exc:
+        check("import race: Sonarr imported the release", False, str(exc))
+        compose("start", "protectarr")
+        return
+    library = [p for p in (WORK / "tv").rglob("*.mkv")]
+    check("import race: Sonarr grabbed and imported the bad release first", bool(library), str(library[:1]))
+
+    compose("start", "protectarr")
+    wait("Protectarr back", lambda: request(PA + "/health")["ok"], 120)
+    e = wait("Protectarr to catch it", lambda: event_for(name, lambda e: e["action"].startswith("blocked")), 180, 3)
+    blocklist = api("/blocklist?pageSize=50")["records"]
+    check("import race: Protectarr found the malware after the import", "EICAR" in e["summary"].upper() or
+          "Eicar" in e["summary"], e["summary"])
+    check("import race: imported file deleted through Sonarr",
+          not api(f"/episode/{ep['id']}")["hasFile"] and not any(p.exists() for p in library), e["action"])
+    check("import race: release blocklisted in Sonarr", any(b.get("sourceTitle") == name for b in blocklist),
+          f"{len(blocklist)} blocklist entries")
+    check("import race: torrent removed from qBittorrent", wait("removed", lambda: q.torrent(h) is None, 30, 1))
+    q.call("/app/setPreferences", {"json": json.dumps({"torrent_stop_condition": "MetadataReceived"})})
+
 
 def main() -> int:
     print("== seeding config folders")
@@ -273,15 +359,15 @@ def main() -> int:
 
     n3 = "E2E.Show.S01E03.1080p.WEB.H264-TEST"
     q.add(n3, [(f"{n3}/{n3}.mkv", b"MZ" + b"\0" * (40 * MB))], "tv-sonarr", seed_complete=True)
-    e = wait("disguised program quarantined", lambda: event_for(n3, lambda e: e["stage"] == "content"), 120, 1)
+    e = wait("disguised program quarantined", lambda: event_for(n3, lambda e: e["stage"] in ("early", "content") and e["level"] != "clean"), 120, 1)
     gone = not (WORK / "downloads/complete/tv-sonarr" / n3 / f"{n3}.mkv").exists()
-    check("3. program with a .mkv name caught after download and quarantined",
+    check("3. program with a .mkv name caught (while or after downloading) and quarantined",
           e["level"] == "malicious" and "quarantined" in e["action"] and gone, e["summary"])
 
     n4 = "E2E.Show.S01E04.1080p.WEB.H264-TEST"
     q.add(n4, [(f"{n4}/{n4}.mkv", video), (f"{n4}/readme.txt", EICAR)],
           "tv-sonarr", seed_complete=True)
-    e = wait("EICAR caught", lambda: event_for(n4, lambda e: e["stage"] == "content"), 180, 2)
+    e = wait("EICAR caught", lambda: event_for(n4, lambda e: e["stage"] in ("early", "content") and e["level"] != "clean"), 180, 2)
     # ClamAV only matches the EICAR test string at the very start of a file.
     check("4. ClamAV detects the EICAR test file in an extra .txt", e["level"] == "malicious" and "ClamAV" in
           e["summary"], e["summary"])
@@ -310,6 +396,8 @@ def main() -> int:
     t = q.torrent(h7)
     check("7. clean episode passes and is started again after the metadata stop",
           e["level"] == "clean" and t and not t["state"].startswith("stopped"), f"state {t and t['state']}")
+
+    import_race(q)
 
     r = urllib.request.Request(PA + "/review/1/allow", method="POST", data=b"",
                                headers={"Origin": "https://evil.example",

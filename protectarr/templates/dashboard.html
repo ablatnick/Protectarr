@@ -20,7 +20,7 @@
       {% if shown or notes %}<ul class="f">{% for f in shown[:5] %}<li class="{{ f.level }}">{{ f.message }}</li>{% endfor %}
         {% for f in notes[:3] %}<li class="muted">{{ f.message }}</li>{% endfor %}</ul>{% endif %}
     </td>
-    <td class="inl muted">{{ {"metadata": "file list", "content": "downloaded files", "manual": "by you"}.get(e.stage, e.stage) }}</td>
+    <td class="inl muted">{{ {"metadata": "file list", "early": "while downloading", "content": "downloaded files", "manual": "by you"}.get(e.stage, e.stage) }}</td>
     <td class="lvl inl {{ e.level }}">{{ e.level }}</td>
     <td>{{ "passed" if e.action == "allow" else ("tagged and notified" if e.action == "alert" else e.action) }}</td>
   </tr>
