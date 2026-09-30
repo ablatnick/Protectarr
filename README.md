@@ -108,10 +108,15 @@ The Indexers page works without Prowlarr too: the indexer comes from the *arr ap
 `http://your-server:9797`, protected by `PROTECTARR_API_KEY` (log in with any username and that password).
 
 - **Activity:** every check, with the reasons and the indexer.
+  <img width="2551" height="1321" alt="Screenshot From 2026-09-30 19-07-30" src="https://github.com/user-attachments/assets/9b873af1-2255-4a00-8e0a-28719c6105dc" />
 - **Review:** held downloads waiting for Allow or Deny.
+  <img width="2551" height="1321" alt="Screenshot From 2026-09-30 19-07-43" src="https://github.com/user-attachments/assets/16d068a4-7c66-4dda-9842-fe6f7c2acb91" />
 - **Quarantine:** blocked files, which you can restore or delete.
+  <img width="2551" height="1321" alt="Screenshot From 2026-09-30 19-07-53" src="https://github.com/user-attachments/assets/81a301af-1293-4140-8b76-ebe9fb5e6008" />
 - **Indexers:** which indexers sent bad releases.
+  <img width="2551" height="1321" alt="Screenshot From 2026-09-30 19-08-03" src="https://github.com/user-attachments/assets/2f5dfac2-a2db-45ee-97ff-ce4e13db0ae2" />
 - **Settings:** the address and key of every service, their live status with setup hints, and the categories being watched.
+  <img width="2551" height="1321" alt="Screenshot From 2026-09-30 19-08-32" src="https://github.com/user-attachments/assets/278fb648-59f8-49a6-abd8-3d48f1bcf216" />
 
 There's a JSON API too: `/api/status`, `/api/settings` (GET, and POST to change connections from a script), `/api/events`, `/api/review`, `/api/quarantine`, `/api/indexers`, and `/health`.
 
