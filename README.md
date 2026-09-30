@@ -103,6 +103,42 @@ The Indexers page works without Prowlarr too: the indexer comes from the *arr ap
 
   (The linuxserver.io qBittorrent image includes `curl`.)
 
+## Recommended containers
+
+Protectarr works alongside these. None are required except qBittorrent and at least one *arr app, but together they make a safer setup.
+
+**Security**
+
+| Container | Why | GitHub |
+|---|---|---|
+| ClamAV | Scans the files Protectarr sends it (subtitles, extras, archives) for known malware. Recommended; Protectarr only needs its TCP port (3310). Image: `clamav/clamav` | [Cisco-Talos/clamav](https://github.com/Cisco-Talos/clamav) · [docker](https://github.com/Cisco-Talos/clamav-docker) |
+| Gluetun | Runs qBittorrent through a VPN with a kill switch, so torrent traffic never leaves without it. Image: `qmcgaw/gluetun` | [passteque/gluetun](https://github.com/passteque/gluetun) |
+
+**Download client**
+
+| Container | Why | GitHub |
+|---|---|---|
+| qBittorrent | The torrent client Protectarr watches (4.x and 5.x). The LinuxServer.io image includes `curl` for the instant hooks | [qbittorrent/qBittorrent](https://github.com/qbittorrent/qBittorrent) · [linuxserver/docker-qbittorrent](https://github.com/linuxserver/docker-qbittorrent) |
+
+**The *arr stack**
+
+| Container | Why | GitHub |
+|---|---|---|
+| Sonarr | TV shows | [Sonarr/Sonarr](https://github.com/Sonarr/Sonarr) |
+| Radarr | Movies | [Radarr/Radarr](https://github.com/Radarr/Radarr) |
+| Lidarr | Music | [Lidarr/Lidarr](https://github.com/Lidarr/Lidarr) |
+| Bookshelf | Books and audiobooks: a maintained fork of Readarr, which has been retired. Add it in Protectarr as type Readarr | [pennydreadful/bookshelf](https://github.com/pennydreadful/bookshelf) · [Readarr (archived)](https://github.com/Readarr/Readarr) |
+| Whisparr | Adult content | [Whisparr/Whisparr](https://github.com/Whisparr/Whisparr) |
+| Prowlarr | Manages indexers for all of the above; connect it to Protectarr to see which indexers send bad releases | [Prowlarr/Prowlarr](https://github.com/Prowlarr/Prowlarr) |
+
+**Helpers**
+
+| Container | Why | GitHub |
+|---|---|---|
+| Unpackerr | Extracts scene RAR releases so the *arr apps can import them. Use it with `ALLOW_ARCHIVES=true`; Protectarr still checks archives for passwords and programs | [Unpackerr/unpackerr](https://github.com/Unpackerr/unpackerr) |
+| FlareSolverr | Gets Prowlarr past Cloudflare checks on some indexers | [FlareSolverr/FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) |
+| qbit_manage | Tags, cleans up and manages torrents in qBittorrent. It can't release a download Protectarr is holding: Protectarr stops it again until you choose Allow | [StuffAnThings/qbit_manage](https://github.com/StuffAnThings/qbit_manage) |
+
 ## Web UI
 
 `http://your-server:9797`, protected by `PROTECTARR_API_KEY` (log in with any username and that password). After the first login you can set your own username and password under Settings > Login; from then on the API key only works for qBittorrent hooks and the JSON API, not the pages. Without `PROTECTARR_API_KEY`, setting a login protects the page and generates a key for the hooks, shown on the Settings page. Locked out? Set `PROTECTARR_RESET_LOGIN=true`, restart, log in with the API key, and remove the variable again. Repeated wrong passwords make an address wait a few minutes.
