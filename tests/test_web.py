@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from conftest import DEFAULT_LOGIN
 from protectarr.config import from_dict
 from protectarr.web import create_app
 from test_guard import env  # noqa: F401  (fixture)
@@ -36,7 +37,7 @@ def test_review_page_allow(env):  # noqa: F811
     guard, qb, _, _ = env
     qb.add("mmm", "Odd.Release", [("Odd.Release.mkv", 1024)])
     asyncio.run(guard.poll())
-    client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     page = client.get("/review").text
     assert "Odd.Release" in page and "below the" in page
     [d] = guard.store.pending_decisions()

@@ -165,7 +165,7 @@ async def run_checks(guard: Guard) -> dict:
         {"done": bool(by["qBittorrent"].get("stop_condition_ok")),
          "text": "In qBittorrent, set Options > Downloads > Torrent stop condition to \"Metadata received\""},
         {"done": bool(guard.cfg.api_key or guard.store.get_setting("login")),
-         "text": "Protect this page: set a login below, or PROTECTARR_API_KEY on the container"},
+         "text": "Change the default password (password123): set a login below, or PROTECTARR_API_KEY on the container"},
     ]
     warnings = []
     if guard.arrs and not any(c["watched"] for c in categories):

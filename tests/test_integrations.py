@@ -18,7 +18,7 @@ from protectarr.quarantine import Quarantine
 from protectarr.rules import TorrentFile, check_metadata
 from protectarr.scanner import Scanner
 from protectarr.web import create_app
-from conftest import MKV, PE
+from conftest import DEFAULT_LOGIN, MKV, PE
 from test_guard import FakeQbit
 
 MB = 1024 * 1024
@@ -242,7 +242,7 @@ async def test_qbittorrent_51_login_returns_204():
 
 def test_cross_site_posts_refused(stack):
     guard, *_ = stack
-    client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     r = client.post("/review/1/allow", headers={"origin": "https://evil.example"})
     assert r.status_code == 403
     r = client.post("/review/1/allow", headers={"origin": "http://testserver"})
@@ -252,7 +252,7 @@ def test_cross_site_posts_refused(stack):
 def test_connections_page_and_status_api(stack):
     guard, qb, sonarr, lidarr, _ = stack
     sonarr.fail = 401
-    client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     status = client.get("/api/status").json()
     by_name = {s["name"]: s for s in status["services"]}
     assert by_name["Sonarr"]["ok"] is False and "API key rejected" in by_name["Sonarr"]["detail"]
@@ -293,7 +293,7 @@ def blank(tmp_path, monkeypatch):
 def test_fresh_install_watches_nothing_until_an_arr_app_is_added(blank):
     guard, _ = blank
     assert not guard.watched("tv-sonarr") and not guard.watched("")
-    client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     page = client.get("/settings").text
     assert "Getting started" in page and "Not set up" in page and "Problem" not in page
     assert "isn't checking anything yet" in client.get("/").text
@@ -301,7 +301,7 @@ def test_fresh_install_watches_nothing_until_an_arr_app_is_added(blank):
 
 def test_settings_form_adds_services_and_keeps_secrets(blank):
     guard, fakes = blank
-    client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     form = {"qbit_url": "qb:8080", "qbit_username": "admin", "qbit_password": "pw",
             "clamav_host": "clamav", "clamav_port": "3310", "clamav_stream_max_mb": "25",
             "prowlarr_url": "", "prowlarr_api_key": "",
@@ -339,7 +339,7 @@ def test_settings_form_adds_services_and_keeps_secrets(blank):
 
 def test_settings_rejects_bad_input(blank):
     guard, _ = blank
-    client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     base = {"qbit_url": "qb:8080", "clamav_port": "3310", "clamav_stream_max_mb": "25"}
     r = client.post("/settings", data={**base, "clamav_port": "abc"}, follow_redirects=False)
     assert "error=" in r.headers["location"]
@@ -350,7 +350,7 @@ def test_settings_rejects_bad_input(blank):
 
 def test_settings_json_api(blank):
     guard, _ = blank
-    client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     r = client.post("/api/settings", json={"arr": [{"kind": "radarr", "url": "http://radarr:7878", "api_key": "K"}]})
     assert r.status_code == 200 and {s["name"] for s in r.json()["services"]} >= {"Radarr"}
     assert client.get("/api/settings").json()["arr"][0]["api_key"] is True
@@ -400,7 +400,7 @@ async def test_unconfigured_qbittorrent_is_never_contacted(blank):
     assert not guard.qbit.configured
     await guard.poll()  # no error, no request
     assert await guard.adopt_existing() == 0
-    client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     q = {s["name"]: s for s in client.get("/api/status").json()["services"]}["qBittorrent"]
     assert q["ok"] is False and q["detail"] == "not set up yet"
 
@@ -426,7 +426,7 @@ async def test_new_torrents_in_other_categories_are_started_but_old_ones_left_al
 def test_reverse_proxy_posts_are_accepted(stack):
     guard, *_ = stack
     guard.cfg.public_url = "https://protectarr.example.com"
-    client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     # Proxy passes the internal Host but the browser's Origin is the public name.
     r = client.post("/review/1/allow", headers={"origin": "https://protectarr.example.com", "host": "protectarr:9797"})
     assert r.status_code == 404
@@ -440,7 +440,7 @@ def test_reverse_proxy_posts_are_accepted(stack):
 
 def test_two_apps_with_the_same_name_are_refused(blank):
     guard, _ = blank
-    client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     r = client.post("/api/settings", json={"arr": [{"kind": "radarr", "url": "http://radarr:7878", "api_key": "a"},
                                                    {"kind": "radarr", "url": "http://radarr4k:7878", "api_key": "b"}]})
     assert r.status_code == 400 and "own name" in r.json()["detail"]
@@ -485,7 +485,7 @@ async def test_an_address_that_is_not_an_arr_app_does_not_stop_checking(stack):
     guard.arrs[0].http._transport = httpx.MockTransport(sonarr.handler)
     await guard.refresh_categories()  # must not raise
     assert "unexpected answer" in guard.arr_errors["Sonarr"]
-    client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     r = client.get("/api/status")
     assert r.status_code == 200
     assert "unexpected answer" in {s["name"]: s for s in r.json()["services"]}["Sonarr"]["detail"]
@@ -507,7 +507,7 @@ def test_real_files_with_unusual_headers_are_recognised():
 
 def test_saved_secrets_are_never_sent_to_a_new_address(blank):
     guard, fakes = blank
-    client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     client.post("/api/settings", json={"qbittorrent": {"url": "http://qb:8080", "username": "admin", "password": "pw"},
                                        "arr": [{"kind": "sonarr", "url": "http://sonarr:8989", "api_key": "SK"}]})
     # Someone points Sonarr at their own server and leaves the key blank: refused.
@@ -533,7 +533,7 @@ def test_review_errors_are_shown_not_a_crash(stack, monkeypatch):
     async def broken(*a, **k):
         raise OSError("disk full")
     monkeypatch.setattr(guard, "allow", broken)
-    client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     r = client.post(f"/review/{d['id']}/allow")
     assert r.status_code == 200 and "Allow failed: disk full" in r.text
 

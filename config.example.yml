@@ -68,5 +68,6 @@ poll_seconds: 5
 # How you open the web UI, if that's through a reverse proxy (so its form posts are accepted).
 public_url: http://your-server:9797
 
-# The web UI password (HTTP Basic, any username); hooks pass it as ?key=.
+# The web UI password (HTTP Basic, any username); hooks pass it as ?key=. Empty means password123 until you set
+# your own login on the Settings page.
 api_key: ${PROTECTARR_API_KEY}

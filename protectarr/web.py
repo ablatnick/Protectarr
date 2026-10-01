@@ -23,7 +23,7 @@ from .clamav import ClamdClient
 from .config import ARR_KINDS, Config, apply_connections, connections_of, merge_connections
 from .db import Store
 from .guard import Guard
-from .login import Logins
+from .login import DEFAULT_PASSWORD, Logins
 from .qbit import QbitClient
 from .quarantine import Quarantine
 from .scanner import Scanner
@@ -92,7 +92,7 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
     if cfg.reset_login and logins.active:
         logins.reset()
         log.warning("PROTECTARR_RESET_LOGIN is set: the saved username and password were removed. Log in with "
-                    "PROTECTARR_API_KEY (or without a password if it isn't set), then remove the variable.")
+                    f"PROTECTARR_API_KEY (or {DEFAULT_PASSWORD} if it isn't set), then remove the variable.")
 
     def _basic(request: Request) -> tuple[str, str] | None:
         auth = request.headers.get("authorization", "")
@@ -110,8 +110,6 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
 
     async def _authorized(request: Request) -> bool:
         login = logins.active
-        if not cfg.api_key and not login:
-            return True
         # The API key: qBittorrent hooks and scripts (?key= or X-Api-Key). Once you've set your own login, it
         # only opens the JSON API and hooks, not the pages.
         key = request.query_params.get("key") or request.headers.get("x-api-key") or ""
@@ -125,7 +123,7 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         if login:
             # Deriving the hash takes a moment; don't hold up the poll loop and other requests meanwhile.
             return logins.cached(*creds) or await asyncio.to_thread(logins.check, *creds)
-        return bool(cfg.api_key) and hmac.compare_digest(creds[1].encode(), cfg.api_key.encode())
+        return hmac.compare_digest(creds[1].encode(), (cfg.api_key or DEFAULT_PASSWORD).encode())
 
     def _same_origin(request: Request) -> bool:
         # Browsers resend Basic credentials on cross-site form posts, so a page elsewhere could press
@@ -255,9 +253,9 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         return page(request, "settings.html", status=status, by_name={x["name"]: x for x in status["services"]},
                     conn=connections_of(guard.cfg), kinds=list(ARR_KINDS), hook_base=_hook_base(request),
                     saved=saved, error=error, login_error=login_error, login_saved=login_saved, login_user=(login or {}).get("username", ""),
-                    protected=bool(cfg.api_key or login), env_key=bool(cfg.api_key),
+                    env_key=bool(cfg.api_key), default_password=DEFAULT_PASSWORD,
                     # A generated key is shown so it can be put in the hooks; PROTECTARR_API_KEY never is.
-                    generated_key="" if cfg.api_key else logins.hook_key(""))
+                    generated_key="" if cfg.api_key or not login else logins.hook_key(""))
 
     @app.post("/settings/login")
     async def settings_login(request: Request):
@@ -266,7 +264,7 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         if login:
             ok = await asyncio.to_thread(logins.check, login["username"], current)
         else:
-            ok = not cfg.api_key or hmac.compare_digest(current.encode(), cfg.api_key.encode())
+            ok = hmac.compare_digest(current.encode(), (cfg.api_key or DEFAULT_PASSWORD).encode())
         try:
             if not ok:
                 raise ValueError("the current password is wrong")

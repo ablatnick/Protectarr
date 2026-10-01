@@ -17,7 +17,7 @@ from protectarr.quarantine import HELD_SUFFIX, Quarantine
 from protectarr.rules import TorrentFile, check_metadata
 from protectarr.scanner import Scanner
 from protectarr.web import create_app
-from conftest import EICAR, MKV, PE
+from conftest import DEFAULT_LOGIN, EICAR, MKV, PE
 from test_integrations import ImportedSonarr, stack  # noqa: F401
 
 MB = 1024 * 1024
@@ -404,6 +404,7 @@ def test_zero_padding_before_a_program_is_not_mp3():
 ])
 def test_settings_api_rejects_malformed_input(stack, body):
     guard = stack[0]
-    c = TestClient(create_app(guard.cfg, guard, start_worker=False), raise_server_exceptions=False)
+    c = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN,
+                   raise_server_exceptions=False)
     r = c.post("/api/settings", content=body, headers={"content-type": "application/json"})
     assert r.status_code == 400, f"{body} -> {r.status_code}"

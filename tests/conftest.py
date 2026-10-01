@@ -1,10 +1,14 @@
+import base64
 import zipfile
 
 import pytest
 
 MKV = b"\x1a\x45\xdf\xa3" + b"\x00" * 1024
 PE = b"MZ\x90\x00" + b"\x00" * 1024
-EICAR = rb"X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
+# The web UI's default login on a fresh install (no PROTECTARR_API_KEY, no saved login).
+DEFAULT_LOGIN = {"Authorization": "Basic " + base64.b64encode(b"admin:password123").decode()}
+# The harmless EICAR antivirus test string, assembled at runtime so antivirus software doesn't flag this file.
+EICAR = b"".join([rb"X5O!P%@AP[4\PZX54(P^)7CC)7}$", b"EICAR-STANDARD-", b"ANTIVIRUS-TEST-FILE!$H+H*"])
 
 
 def make_zip(path, entries, encrypted=False):

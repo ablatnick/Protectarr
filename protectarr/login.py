@@ -1,7 +1,8 @@
 """The web UI's own username and password, set on the Settings page after the first login.
 
-Until one is set, the UI accepts any username with PROTECTARR_API_KEY as the password. Once set, pages need that
-username and password, and the API key (or a generated one) only opens /api/ for qBittorrent hooks and scripts."""
+Until one is set, the UI accepts any username with PROTECTARR_API_KEY as the password, or DEFAULT_PASSWORD when that
+isn't set either. Once set, pages need that username and password, and the API key (or a generated one) only opens
+/api/ for qBittorrent hooks and scripts; the default password stops working."""
 
 from __future__ import annotations
 
@@ -10,6 +11,8 @@ import hmac
 import secrets
 import time
 
+# The password on a fresh install (any username), until PROTECTARR_API_KEY or your own login replaces it.
+DEFAULT_PASSWORD = "password123"
 ITERATIONS = 600_000
 MIN_PASSWORD = 8
 # Failed logins per address before it has to wait, and for how long.
@@ -88,7 +91,7 @@ class Logins:
 
     def hook_key(self, api_key: str) -> str:
         login = self.get()
-        return api_key or (login or {}).get("hook_key", "")
+        return api_key or (login["hook_key"] if login else DEFAULT_PASSWORD)
 
     # ----- slowing down password guessing ---------------------------------------------------------------------
 

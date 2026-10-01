@@ -7,7 +7,7 @@ services:
     container_name: protectarr
     user: "1000:1000"                          # CHANGE: the same PUID:PGID as qBittorrent
     environment:
-      PROTECTARR_API_KEY: changeme             # CHANGE: the web UI password (any username)
+      PROTECTARR_API_KEY: changeme             # CHANGE: the web UI password (any username); without it, password123
       # PUBLIC_URL: https://protectarr.example.com   # optional: only behind a reverse proxy
     volumes:
       - ./protectarr/config:/config            # settings and history

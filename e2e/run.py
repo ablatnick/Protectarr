@@ -33,7 +33,8 @@ KEYS = {"sonarr": "e2e0sonarr0000000000000000000001", "lidarr": "e2e0lidarr00000
         "prowlarr": "e2e0prowlarr00000000000000000001"}
 QB_PASSWORD, UI_KEY = "e2e-password", "e2e-ui-key"
 MB = 1024 * 1024
-EICAR = b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
+# Assembled at runtime so antivirus software doesn't flag this file.
+EICAR = b"".join([b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$", b"EICAR-STANDARD-", b"ANTIVIRUS-TEST-FILE!$H+H*"])
 MKV_HEAD = b"\x1a\x45\xdf\xa3"
 
 results: list[tuple[str, bool, str]] = []

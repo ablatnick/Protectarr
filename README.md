@@ -1,4 +1,4 @@
-<img width="750" height="750" alt="The Shield of Protectarr" src="https://github.com/user-attachments/assets/8cbfd4c3-f1e1-44bd-a2c3-34ecc8d42b22" />
+<p align="center"><img width="400" height="400" alt="The Shield of Protectarr" src="docs/logo.png" /></p>
 
 # Protectarr
 
@@ -47,6 +47,8 @@ Protectarr is a single container. You run qBittorrent (4.5 or later, 5.x recomme
      ghcr.io/ablatnick/protectarr:latest
    ```
 
+   `PROTECTARR_API_KEY` is your web UI password. If you leave it out, the password is **`password123`** (any username) until you set your own login on the Settings page. Change it before anything else.
+
    Two things matter:
    - `--user` must match qBittorrent's `PUID:PGID`, so Protectarr can move files into quarantine.
    - Mount your downloads folder at **the same path qBittorrent uses** (for example `/downloads` or `/data`).
@@ -59,7 +61,7 @@ Protectarr is a single container. You run qBittorrent (4.5 or later, 5.x recomme
 
    It needs a few minutes to download its signatures on first start.
 
-3. **Open `http://your-server:9797/settings`** (any username, the password you chose) and enter:
+3. **Open `http://your-server:9797/settings`** (any username, the password you chose, or `password123` if you didn't set one) and enter:
    - qBittorrent's address, username and password,
    - each *arr app's address and API key (**Settings > General > Security** in that app),
    - ClamAV's host and port (3310), and Prowlarr if you want indexer reports.
@@ -101,7 +103,7 @@ The Indexers page works without Prowlarr too: the indexer comes from the *arr ap
   - on torrent added: `curl -fsS "http://your-server:9797/api/hook/added?hash=%I&key=YOUR_API_KEY"`
   - on torrent finished: `curl -fsS "http://your-server:9797/api/hook/finished?hash=%I&key=YOUR_API_KEY"`
 
-  `YOUR_API_KEY` is `PROTECTARR_API_KEY`, or the generated key shown on the Settings page if you didn't set one.
+  `YOUR_API_KEY` is `PROTECTARR_API_KEY`, or, if you didn't set one, the generated key shown on the Settings page once you've set a login.
 
   (The linuxserver.io qBittorrent image includes `curl`.)
 
@@ -135,7 +137,7 @@ Protectarr works alongside these. None are required except qBittorrent and at le
 
 ## Web UI
 
-`http://your-server:9797`, protected by `PROTECTARR_API_KEY` (log in with any username and that password). After the first login you can set your own username and password under Settings > Login; from then on the API key only works for qBittorrent hooks and the JSON API, not the pages. Without `PROTECTARR_API_KEY`, setting a login protects the page and generates a key for the hooks, shown on the Settings page. Locked out? Set `PROTECTARR_RESET_LOGIN=true`, restart, log in with the API key, and remove the variable again. Repeated wrong passwords make an address wait a few minutes.
+`http://your-server:9797`, protected by `PROTECTARR_API_KEY` (log in with any username and that password). After the first login you can set your own username and password under Settings > Login; from then on the API key only works for qBittorrent hooks and the JSON API, not the pages. Without `PROTECTARR_API_KEY`, the password is `password123` (any username) until you set a login, which also generates a key for the hooks, shown on the Settings page. Change it right away. Locked out? Set `PROTECTARR_RESET_LOGIN=true`, restart, log in with the API key (or `password123`), and remove the variable again. Repeated wrong passwords make an address wait a few minutes.
 
 - **Activity:** every check, with the reasons and the indexer.
   <img width="1102" height="1319" alt="Screenshot From 2026-09-30 19-07-30" src="https://github.com/user-attachments/assets/db3450ca-ec87-44fb-8516-c24fc6d352b4" />
@@ -177,7 +179,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `ALLOW_ARCHIVES` | `false` | Set `true` if you use Unpackerr for scene RAR releases. Archives are still checked for passwords and programs |
 | `EXTRA_BLOCKED_EXTENSIONS` | empty | e.g. `.iso,.torrent` |
 | `PATH_MAPPINGS` | empty | `qbit-path:protectarr-path`, comma-separated |
-| `PROTECTARR_API_KEY` | empty | Web UI password until you set your own login on the Settings page; also required as `?key=` on hooks |
+| `PROTECTARR_API_KEY` | empty (password `password123`) | Web UI password until you set your own login on the Settings page; also required as `?key=` on hooks |
 | `PROTECTARR_RESET_LOGIN` | `false` | Forget the login set on the Settings page (when you're locked out) |
 | `PUBLIC_URL` | empty | How you open the UI, if that's through a reverse proxy |
 | `POLL_SECONDS` | `5` | How often qBittorrent is checked |
@@ -197,9 +199,19 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 - **Torrents keep being checked after their category changes**, for example by an *arr app's "category after import".
 - **Notifications: coming soon.** Protectarr doesn't send alerts (Discord, Telegram, ntfy, email) yet. For now, check the Activity and Review pages (Review shows a badge when something is waiting for you), or watch the container log, which records every block and hold.
 - **qBittorrent only**, for now. Transmission and Deluge support is planned.
-- **Keep the UI on your LAN** (or behind a VPN or reverse proxy with its own login), and set `PROTECTARR_API_KEY` or your own login. Wrong passwords lock out an address for a few minutes; behind a reverse proxy that address is the proxy's, so repeated failures there make everyone wait. Behind a reverse proxy, set `PUBLIC_URL` to the address you open it on.
+- **Keep the UI on your LAN** (or behind a VPN or reverse proxy with its own login), and set `PROTECTARR_API_KEY` or your own login (the default password `password123` is public). Wrong passwords lock out an address for a few minutes; behind a reverse proxy that address is the proxy's, so repeated failures there make everyone wait. Behind a reverse proxy, set `PUBLIC_URL` to the address you open it on.
 - **Failed qBittorrent logins back off** (1 minute, doubling up to 15), because qBittorrent bans an address after 5 failures. Saving the Settings page retries straight away.
 -  **CAN FAIL** Protectarr can fail or make mistakes! Protectarr is designed to mitigate risks with torrenting. Even though this container has underwent numerous tests there is still a possibility of failure. By downloading this container you understand that this is not your antivirus solution, it is intended as just another layer to protect you. 
+
+## Antivirus warnings (Windows Defender and others)
+
+Your antivirus may flag Protectarr's files. **Protectarr is not malicious**; it's built to catch malware, so some of its files have to look like malware on purpose:
+
+- **The tests and e2e scripts** (`tests/`, `e2e/`, not in the Docker image) create the [EICAR test file](https://www.eicar.org/download-anti-malware-testfile/) and fake program headers to check that bad downloads are caught. EICAR is a harmless, industry-standard string that every antivirus reports as a "virus" so detection can be tested safely. The source only builds it at runtime, but Windows Defender may still flag files the tests write, or the repo zip. It's safe to allow them, or skip downloading `tests/` and `e2e/` if you only want to run the container.
+- **The quarantine folder** holds the real files Protectarr blocked. If your antivirus flags or deletes something in it, that's it doing its job too; you can exclude the folder or let it clean it up.
+- **Your downloads folder.** On Windows (Docker Desktop), Defender may scan or remove a bad download before Protectarr gets to it. That's fine: Protectarr then holds the torrent because the files are missing.
+
+If you're unsure, the full source is here to read, and the image is built from it by the [release workflow](.github/workflows/release.yml).
 
 ## Development
 

@@ -89,12 +89,21 @@ def test_change_again_needs_the_new_password(env):  # noqa: F811
     assert c.get("/", auth=("ab", "password-two")).status_code == 200
 
 
-def test_no_api_key_login_protects_page_and_generates_hook_key(env):  # noqa: F811
+def test_no_api_key_uses_default_password_until_login_set(env):  # noqa: F811
     guard, *_ = env
     c = client_for(guard, api_key="")
-    assert c.get("/").status_code == 200  # open until a login is set
-    change(c, None, username="alec", new_password="password-one", confirm_password="password-one")
     assert c.get("/").status_code == 401
+    assert c.get("/", auth=("anyone", "password123")).status_code == 200
+    assert "password123" in c.get("/settings", auth=("anyone", "password123")).text
+    assert c.get("/api/hook/added?hash=abc&key=password123").status_code == 202
+    r = change(c, ("x", "password123"), current_password="wrong", username="alec", new_password="password-one",
+               confirm_password="password-one")
+    assert "login_error" in r.headers["location"]
+    change(c, ("x", "password123"), current_password="password123", username="alec",
+           new_password="password-one", confirm_password="password-one")
+    assert c.get("/").status_code == 401
+    assert c.get("/", auth=("anyone", "password123")).status_code == 401  # the default stops working
+    assert c.get("/api/hook/added?hash=abc&key=password123").status_code == 401
     hook_key = guard.store.get_setting("login")["hook_key"]
     assert hook_key in c.get("/settings", auth=("alec", "password-one")).text  # shown so it can go in qBittorrent
     assert c.get(f"/api/hook/added?hash=abc&key={hook_key}").status_code == 202
