@@ -157,7 +157,7 @@ def main() -> None:
         did = store.add_decision(h * 20, name, cat, stage, level, summary, findings, qid, indexer)
         store._exec("UPDATE decisions SET ts=? WHERE id=?", (NOW - age, did))
     print(f"demo data written: {len(EVENTS)} events, {len(DECISIONS)} to review, "
-          f"{len(QUARANTINED)} in quarantine. Open http://127.0.0.1:19797 (any username, password e2e-ui-key)")
+          f"{len(QUARANTINED)} in quarantine. Open http://127.0.0.1:19797 (username e2e, password e2e-ui-key)")
 
 
 if __name__ == "__main__":

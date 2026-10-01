@@ -164,8 +164,8 @@ async def run_checks(guard: Guard) -> dict:
          "text": "Connect ClamAV (recommended)"},
         {"done": bool(by["qBittorrent"].get("stop_condition_ok")),
          "text": "In qBittorrent, set Options > Downloads > Torrent stop condition to \"Metadata received\""},
-        {"done": bool(guard.cfg.api_key or guard.store.get_setting("login")),
-         "text": "Change the default password (password123): set a login below, or PROTECTARR_API_KEY on the container"},
+        {"done": not (guard.store.get_setting("login") or {}).get("generated"),
+         "text": "Replace the generated password from the log: set your own login below"},
     ]
     warnings = []
     if guard.arrs and not any(c["watched"] for c in categories):

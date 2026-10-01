@@ -2,11 +2,18 @@
 
 ## 0.4.0
 
-- **Your own login:** after the first login (with `PROTECTARR_API_KEY`), set a username and password under Settings > Login. The password is stored as a salted PBKDF2 hash; the API key then only opens hooks and the JSON API. Without an API key, the default password is `password123` (any username) until you set a login, which also generates a hook key. `PROTECTARR_RESET_LOGIN=true` clears it if you're locked out. After 10 wrong passwords or API keys in 5 minutes an address is refused (even with the right password) for a few minutes, and checking a password never holds up scanning.
+- **Logins and tokens, kept apart:** the web UI, the JSON API and the qBittorrent hooks each have their own credential, so a leaked one only opens what it's for.
+  - **Web UI login:** on first start a random password for `admin` is generated and printed once in the log (or set `PROTECTARR_USERNAME`/`PROTECTARR_PASSWORD`). Change it under Settings > Login; it's stored as a salted PBKDF2 hash. There is no default password, and the UI is never open without a login.
+  - **API token** (`PROTECTARR_API_KEY`, or generated): opens `/api/` only, sent as a header (`Authorization: Bearer` or `X-Api-Key`), never in a URL. It no longer opens the web pages.
+  - **Hook token** (generated): opens only `/api/hook/`. The hook commands on the Settings page send it as a header, so it stays out of access logs.
+  - Tokens can be regenerated on the Settings page. `PROTECTARR_RESET_LOGIN=true` replaces a forgotten login with a new generated one. After 10 wrong passwords or tokens in 5 minutes an address is refused (even with the right password) for a few minutes, and checking a password never holds up scanning.
+  - Older setups keep working: a saved login, the old hook key, and hooks passing `PROTECTARR_API_KEY` as `?key=` (with a warning in the log).
 
 - **Logo:** the pixel-art blue shield (`docs/logo.png`) is Protectarr's logo, in the README and as the web UI's header icon and favicon.
 
-- **Default password and antivirus notes:** without `PROTECTARR_API_KEY`, the web UI password is `password123` until you set a login (it used to be open). The README explains why antivirus software may flag the test files and the quarantine folder, and the test sources no longer contain the EICAR string itself.
+- **Architecture diagrams:** the README has a stack diagram, and [`docs/architecture.md`](docs/architecture.md) walks through a download and the credentials.
+
+- **Antivirus notes:** the README explains why antivirus software may flag the test files and the quarantine folder, and the test sources no longer contain the EICAR string itself.
 
 - **Removed: Apprise notifications and the `alert` action.** Notifications are coming back as a proper feature. `APPRISE_URLS` / `apprise_urls` are ignored, and an existing `alert` action is treated as `hold` (with a warning in the log). Blocks and holds are still recorded on the Activity page and in the log.
 

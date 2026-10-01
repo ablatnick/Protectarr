@@ -1,22 +1,19 @@
-"""Changing the web UI's username and password after the first login."""
+"""The web UI login, the API token and the hook token."""
 
-import pytest
+import logging
+
 from fastapi.testclient import TestClient
 
-from protectarr import login as login_mod
+from conftest import FIRST_PASSWORD
 from protectarr.login import hash_password, verify_password
 from protectarr.web import create_app
 from test_guard import env  # noqa: F401  (fixture)
 
-
-@pytest.fixture(autouse=True)
-def fast_hashing(monkeypatch):
-    monkeypatch.setattr(login_mod, "ITERATIONS", 1000)
-    monkeypatch.setattr(login_mod.hash_password, "__defaults__", (1000,))
+FIRST = ("admin", FIRST_PASSWORD)
 
 
-def client_for(guard, api_key="first-key"):
-    guard.cfg.api_key = api_key
+def client_for(guard, api_key="", password=""):
+    guard.cfg.api_key, guard.cfg.password = api_key, password
     return TestClient(create_app(guard.cfg, guard, start_worker=False))
 
 
@@ -31,99 +28,141 @@ def test_hashing():
     assert not verify_password("wrong", h) and not verify_password("x", "garbage")
 
 
-def test_change_login_after_first_login(env):  # noqa: F811
+def test_first_start_generates_a_password_and_logs_it_once(env, caplog):  # noqa: F811
+    guard, *_ = env
+    with caplog.at_level(logging.WARNING):
+        c = client_for(guard)
+    assert FIRST_PASSWORD in caplog.text
+    assert c.get("/").status_code == 401
+    assert c.get("/", auth=("someone", FIRST_PASSWORD)).status_code == 401  # the username matters
+    assert c.get("/", auth=FIRST).status_code == 200
+    assert "generated on first start" in c.get("/settings", auth=FIRST).text
+    assert FIRST_PASSWORD not in str(guard.store.get_setting("login"))
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        client_for(guard)
+    assert FIRST_PASSWORD not in caplog.text  # only printed when it's made
+
+
+def test_first_password_from_the_environment(env, caplog):  # noqa: F811
+    guard, *_ = env
+    guard.cfg.username = "ab"
+    with caplog.at_level(logging.WARNING):
+        c = client_for(guard, password="my-own-password")
+    assert "my-own-password" not in caplog.text
+    assert c.get("/", auth=("ab", "my-own-password")).status_code == 200
+    assert "generated on first start" not in c.get("/settings", auth=("ab", "my-own-password")).text
+
+
+def test_too_short_first_password_falls_back_to_a_generated_one(env, caplog):  # noqa: F811
+    guard, *_ = env
+    with caplog.at_level(logging.WARNING):
+        c = client_for(guard, password="short")
+    assert "at least 8" in caplog.text and FIRST_PASSWORD in caplog.text
+    assert c.get("/", auth=FIRST).status_code == 200
+
+
+def test_change_login(env):  # noqa: F811
     guard, *_ = env
     c = client_for(guard)
-    assert c.get("/", auth=("anyone", "first-key")).status_code == 200  # first login: any username + API key
-    page = c.get("/settings", auth=("anyone", "first-key")).text
-    assert "Set a login" in page
-
-    r = change(c, ("anyone", "first-key"), current_password="first-key", username="alec",
+    r = change(c, FIRST, current_password=FIRST_PASSWORD, username="alec",
                new_password="n3w-password", confirm_password="n3w-password")
     assert r.status_code == 303 and "login_saved" in r.headers["location"]
-
-    assert c.get("/", auth=("anyone", "first-key")).status_code == 401  # the old password no longer opens pages
-    assert c.get("/", auth=("someone", "n3w-password")).status_code == 401  # username matters now
+    assert c.get("/", auth=FIRST).status_code == 401
     assert c.get("/", auth=("alec", "n3w-password")).status_code == 200
-    assert "You log in as <b>alec</b>" in c.get("/settings", auth=("alec", "n3w-password")).text
-    stored = guard.store.get_setting("login")
-    assert "n3w-password" not in str(stored)
-
-    # The API key still works for hooks and the JSON API, but not for pages.
-    assert c.get("/api/hook/added?hash=abc&key=first-key").status_code == 202
-    assert c.get("/api/events", headers={"x-api-key": "first-key"}).status_code == 200
-    assert c.get("/?key=first-key").status_code == 401
+    page = c.get("/settings", auth=("alec", "n3w-password")).text
+    assert "You log in as <b>alec</b>" in page and "generated on first start" not in page
+    assert "n3w-password" not in str(guard.store.get_setting("login"))
+    r = change(c, ("alec", "n3w-password"), current_password=FIRST_PASSWORD, username="alec",
+               new_password="password-two", confirm_password="password-two")
+    assert "login_error" in r.headers["location"]  # the old password isn't the current one any more
 
 
 def test_change_rejected(env):  # noqa: F811
     guard, *_ = env
     c = client_for(guard)
-    auth = ("x", "first-key")
     for form, why in [
         ({"current_password": "wrong", "username": "a", "new_password": "longenough", "confirm_password": "longenough"},
          "current password is wrong"),
-        ({"current_password": "first-key", "username": "a", "new_password": "longenough", "confirm_password": "other1234"},
-         "new passwords don"),
-        ({"current_password": "first-key", "username": "a", "new_password": "short", "confirm_password": "short"},
+        ({"current_password": FIRST_PASSWORD, "username": "a", "new_password": "longenough",
+          "confirm_password": "other1234"}, "new passwords don"),
+        ({"current_password": FIRST_PASSWORD, "username": "a", "new_password": "short", "confirm_password": "short"},
          "at least 8"),
-        ({"current_password": "first-key", "username": "a:b", "new_password": "longenough",
+        ({"current_password": FIRST_PASSWORD, "username": "a:b", "new_password": "longenough",
           "confirm_password": "longenough"}, "1 to 64 characters"),
     ]:
-        r = change(c, auth, **form)
+        r = change(c, FIRST, **form)
         assert r.status_code == 303 and "login_error" in r.headers["location"]
-        assert why in c.get(r.headers["location"], auth=auth).text
-    assert guard.store.get_setting("login") is None
+        assert why in c.get(r.headers["location"], auth=FIRST).text
+    assert guard.store.get_setting("login")["generated"]
 
 
-def test_change_again_needs_the_new_password(env):  # noqa: F811
+def test_tokens_only_open_what_they_are_for(env):  # noqa: F811
     guard, *_ = env
     c = client_for(guard)
-    change(c, ("x", "first-key"), current_password="first-key", username="alec",
-           new_password="password-one", confirm_password="password-one")
-    auth = ("alec", "password-one")
-    r = change(c, auth, current_password="first-key", username="alec", new_password="password-two",
-               confirm_password="password-two")
-    assert "login_error" in r.headers["location"]  # the API key isn't the current password any more
-    change(c, auth, current_password="password-one", username="ab", new_password="password-two",
-           confirm_password="password-two")
-    assert c.get("/", auth=("ab", "password-two")).status_code == 200
+    api, hook = guard.store.get_setting("api_key"), guard.store.get_setting("hook_key")
+    assert api and hook and api != hook
+    page = c.get("/settings", auth=FIRST).text
+    assert api in page and hook in page and f"Bearer {hook}" in page
+    # API token: the JSON API, as a header only, never pages.
+    assert c.get("/api/events", headers={"Authorization": f"Bearer {api}"}).status_code == 200
+    assert c.get("/api/events", headers={"X-Api-Key": api}).status_code == 200
+    assert c.get(f"/api/events?key={api}").status_code == 401
+    assert c.get("/", headers={"Authorization": f"Bearer {api}"}).status_code == 401
+    assert c.get("/", auth=("x", api)).status_code == 401
+    # Hook token: only the hooks.
+    assert c.get("/api/hook/added?hash=abc", headers={"Authorization": f"Bearer {hook}"}).status_code == 202
+    assert c.get(f"/api/hook/finished?hash=abc&key={hook}").status_code == 202
+    assert c.get("/api/events", headers={"Authorization": f"Bearer {hook}"}).status_code == 401
+    assert c.get("/api/settings", headers={"X-Api-Key": hook}).status_code == 401
+    assert c.get("/", auth=("x", hook)).status_code == 401
 
 
-def test_no_api_key_uses_default_password_until_login_set(env):  # noqa: F811
+def test_regenerate_token(env):  # noqa: F811
     guard, *_ = env
-    c = client_for(guard, api_key="")
-    assert c.get("/").status_code == 401
-    assert c.get("/", auth=("anyone", "password123")).status_code == 200
-    assert "password123" in c.get("/settings", auth=("anyone", "password123")).text
-    assert c.get("/api/hook/added?hash=abc&key=password123").status_code == 202
-    r = change(c, ("x", "password123"), current_password="wrong", username="alec", new_password="password-one",
-               confirm_password="password-one")
-    assert "login_error" in r.headers["location"]
-    change(c, ("x", "password123"), current_password="password123", username="alec",
-           new_password="password-one", confirm_password="password-one")
-    assert c.get("/").status_code == 401
-    assert c.get("/", auth=("anyone", "password123")).status_code == 401  # the default stops working
-    assert c.get("/api/hook/added?hash=abc&key=password123").status_code == 401
-    hook_key = guard.store.get_setting("login")["hook_key"]
-    assert hook_key in c.get("/settings", auth=("alec", "password-one")).text  # shown so it can go in qBittorrent
-    assert c.get(f"/api/hook/added?hash=abc&key={hook_key}").status_code == 202
-    assert c.get(f"/?key={hook_key}").status_code == 401
+    c = client_for(guard)
+    old = guard.store.get_setting("hook_key")
+    assert c.post("/settings/token/hook_key", auth=FIRST, follow_redirects=False).status_code == 303
+    new = guard.store.get_setting("hook_key")
+    assert new != old
+    assert c.get(f"/api/hook/added?hash=abc&key={old}").status_code == 401
+    assert c.get(f"/api/hook/added?hash=abc&key={new}").status_code == 202
+    assert c.post("/settings/token/login", auth=FIRST).status_code == 404
+    assert c.post("/settings/token/hook_key").status_code == 401
 
 
-def test_env_api_key_is_never_shown(env):  # noqa: F811
+def test_env_api_key_is_never_shown_or_regenerated(env):  # noqa: F811
     guard, *_ = env
     c = client_for(guard, api_key="very-secret-key")
-    assert "very-secret-key" not in c.get("/settings", auth=("x", "very-secret-key")).text
+    assert "very-secret-key" not in c.get("/settings", auth=FIRST).text
+    assert c.get("/api/events", headers={"X-Api-Key": "very-secret-key"}).status_code == 200
+    assert c.post("/settings/token/api_key", auth=FIRST).status_code == 404
 
 
-def test_reset_login(env):  # noqa: F811
+def test_older_setups_keep_working(env, caplog):  # noqa: F811
+    guard, *_ = env
+    # Earlier versions kept the hook key with the login, and hooks passed the API key in the URL.
+    guard.store.set_setting("login", {"username": "alec", "password": hash_password("old-password"),
+                                      "hook_key": "old-hook-key"})
+    c = client_for(guard, api_key="env-key")
+    assert c.get("/", auth=("alec", "old-password")).status_code == 200
+    assert c.get("/api/hook/added?hash=abc&key=old-hook-key").status_code == 202
+    with caplog.at_level(logging.WARNING):
+        assert c.get("/api/hook/added?hash=abc&key=env-key").status_code == 202
+    assert "hook token" in caplog.text
+
+
+def test_reset_login(env, caplog):  # noqa: F811
     guard, *_ = env
     c = client_for(guard)
-    change(c, ("x", "first-key"), current_password="first-key", username="alec",
+    change(c, FIRST, current_password=FIRST_PASSWORD, username="alec",
            new_password="forgotten-pw", confirm_password="forgotten-pw")
     guard.cfg.reset_login = True
-    c = client_for(guard)
-    assert c.get("/", auth=("anyone", "first-key")).status_code == 200
+    with caplog.at_level(logging.WARNING):
+        c = client_for(guard)
+    assert FIRST_PASSWORD in caplog.text  # a new password, printed in the log
+    assert c.get("/", auth=FIRST).status_code == 200
+    assert c.get("/", auth=("alec", "forgotten-pw")).status_code == 401
 
 
 def test_password_guessing_is_slowed_down(env):  # noqa: F811
@@ -137,25 +176,25 @@ def test_password_guessing_is_slowed_down(env):  # noqa: F811
 def test_cross_site_login_change_refused(env):  # noqa: F811
     guard, *_ = env
     c = client_for(guard)
-    r = c.post("/settings/login", data={"current_password": "first-key", "username": "evil",
+    r = c.post("/settings/login", data={"current_password": FIRST_PASSWORD, "username": "evil",
                                         "new_password": "evil-pass", "confirm_password": "evil-pass"},
-               auth=("x", "first-key"), headers={"origin": "http://evil.example"})
-    assert r.status_code == 403 and guard.store.get_setting("login") is None
+               auth=FIRST, headers={"origin": "http://evil.example"})
+    assert r.status_code == 403 and guard.store.get_setting("login")["username"] == "admin"
+    r = c.post("/settings/token/hook_key", auth=FIRST, headers={"origin": "http://evil.example"})
+    assert r.status_code == 403
 
 
 def test_locked_out_address_cannot_find_the_right_password(env):  # noqa: F811
     guard, *_ = env
     c = client_for(guard)
-    change(c, ("x", "first-key"), current_password="first-key", username="alec",
-           new_password="the-real-pw", confirm_password="the-real-pw")
     for i in range(10):
-        assert c.get("/", auth=("alec", f"guess{i}")).status_code == 401
+        assert c.get("/", auth=("admin", f"guess{i}")).status_code == 401
     # Locked: even the right password is refused, so guessing can't continue in the background.
-    assert c.get("/", auth=("alec", "the-real-pw")).status_code == 429
+    assert c.get("/", auth=FIRST).status_code == 429
 
 
-def test_wrong_api_keys_count_as_failed_logins(env):  # noqa: F811
+def test_wrong_tokens_count_as_failed_logins(env):  # noqa: F811
     guard, *_ = env
     c = client_for(guard)
-    codes = [c.get(f"/api/events?key=guess{i}").status_code for i in range(11)]
+    codes = [c.get("/api/events", headers={"Authorization": f"Bearer guess{i}"}).status_code for i in range(11)]
     assert codes[:10] == [401] * 10 and codes[10] == 429

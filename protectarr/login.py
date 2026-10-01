@@ -1,8 +1,11 @@
-"""The web UI's own username and password, set on the Settings page after the first login.
+"""Protectarr's three credentials, kept apart so a leaked one only opens what it's for.
 
-Until one is set, the UI accepts any username with PROTECTARR_API_KEY as the password, or DEFAULT_PASSWORD when that
-isn't set either. Once set, pages need that username and password, and the API key (or a generated one) only opens
-/api/ for qBittorrent hooks and scripts; the default password stops working."""
+- **Web UI login** (username + password, stored as a salted PBKDF2 hash). On first start it comes from
+  PROTECTARR_USERNAME/PROTECTARR_PASSWORD, or a random password is generated and printed once in the log. Change it
+  on the Settings page. It opens everything.
+- **API token** (PROTECTARR_API_KEY, or generated): scripts and the JSON API under /api/, sent as a header.
+- **Hook token** (generated): only the qBittorrent hooks under /api/hook/. It sits in qBittorrent's settings and
+  may end up in logs, so it can't open anything else."""
 
 from __future__ import annotations
 
@@ -11,13 +14,20 @@ import hmac
 import secrets
 import time
 
-# The password on a fresh install (any username), until PROTECTARR_API_KEY or your own login replaces it.
-DEFAULT_PASSWORD = "password123"
 ITERATIONS = 600_000
 MIN_PASSWORD = 8
+DEFAULT_USERNAME = "admin"
 # Failed logins per address before it has to wait, and for how long.
 MAX_FAILURES = 10
 FAILURE_WINDOW_SECONDS = 300
+
+
+def new_secret(nbytes: int = 18) -> str:
+    return secrets.token_urlsafe(nbytes)
+
+
+def new_password() -> str:
+    return new_secret(12)
 
 
 def hash_password(password: str, iterations: int = ITERATIONS) -> str:
@@ -57,12 +67,30 @@ class Logins:
             raise ValueError("the username must be 1 to 64 characters, without ':'")
         if len(password) < MIN_PASSWORD:
             raise ValueError(f"the password must be at least {MIN_PASSWORD} characters")
-        old = self.get() or {}
-        self.store.set_setting("login", {
-            "username": username, "password": hash_password(password),
-            # Hooks and scripts need a key of their own when PROTECTARR_API_KEY isn't set.
-            "hook_key": old.get("hook_key") or secrets.token_urlsafe(24), "changed": time.time()})
+        self._save(username, password, generated=False)
+
+    def _save(self, username: str, password: str, generated: bool) -> None:
+        self.store.set_setting("login", {"username": username, "password": hash_password(password),
+                                         "generated": generated, "changed": time.time()})
         self._verified.clear()
+
+    @property
+    def generated(self) -> bool:
+        """Still the password Protectarr made up on first start."""
+        return bool((self.get() or {}).get("generated"))
+
+    def ensure(self, username: str = "", password: str = "") -> str | None:
+        """Create the first login if there's none: from the given password, or a random one, which is returned
+        so it can be printed once."""
+        if self.active:
+            return None
+        username = username.strip() or DEFAULT_USERNAME
+        if password:
+            self.set(username, password)
+            return None
+        password = new_password()
+        self._save(username, password, generated=True)
+        return password
 
     def reset(self) -> None:
         self.store.set_setting("login", None)
@@ -89,9 +117,21 @@ class Logins:
             self._verified.add(token)
         return ok
 
-    def hook_key(self, api_key: str) -> str:
-        login = self.get()
-        return api_key or (login["hook_key"] if login else DEFAULT_PASSWORD)
+    # ----- tokens for scripts and hooks ----------------------------------------------------------------------
+
+    def token(self, name: str) -> str:
+        """The generated "api_key" or "hook_key", created on first use."""
+        value = self.store.get_setting(name)
+        if not value:
+            # Earlier versions kept the hook key with the login; keep it so existing hooks still work.
+            value = (name == "hook_key" and (self.get() or {}).get("hook_key")) or new_secret()
+            self.store.set_setting(name, value)
+        return value
+
+    def regenerate(self, name: str) -> str:
+        value = new_secret()
+        self.store.set_setting(name, value)
+        return value
 
     # ----- slowing down password guessing ---------------------------------------------------------------------
 

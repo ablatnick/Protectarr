@@ -50,7 +50,8 @@ services:
     user: "${E2E_UID:-1000}:${E2E_GID:-1000}"
     environment:
       # Everything else is entered through the Settings page by run.py, as a user would.
-      PROTECTARR_API_KEY: e2e-ui-key
+      PROTECTARR_USERNAME: e2e
+      PROTECTARR_PASSWORD: e2e-ui-key
       POLL_SECONDS: "2"
     volumes:
       - ./work/protectarr:/config

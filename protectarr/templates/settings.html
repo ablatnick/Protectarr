@@ -77,19 +77,28 @@
 </table></div>
 
 <h2>Instant hooks (optional)</h2>
-{% set key = "&key=" ~ (generated_key if generated_key else "YOUR_API_KEY") %}
-<p class="muted">In qBittorrent, Options &gt; Downloads &gt; Run external program. Use the address qBittorrent can reach Protectarr on.{% if env_key %} Replace <code>YOUR_API_KEY</code> with <code>PROTECTARR_API_KEY</code> from the container settings.{% elif generated_key %} The key below was generated for hooks and scripts; it can't open these pages.{% else %} Set a login below first: it generates the key to put here (the default password stops working then).{% endif %}</p>
+<p class="muted">In qBittorrent, Options &gt; Downloads &gt; Run external program. Use the address qBittorrent can reach Protectarr on. The commands carry the <b>hook token</b>, which can only trigger these two hooks, not open this page or change settings.</p>
 <div class="hooks">
-  <div><span class="muted">Run on torrent added</span><code>curl -fsS "{{ hook_base }}/api/hook/added?hash=%I{{ key }}"</code></div>
-  <div><span class="muted">Run on torrent finished</span><code>curl -fsS "{{ hook_base }}/api/hook/finished?hash=%I{{ key }}"</code></div>
+  <div><span class="muted">Run on torrent added</span><code>curl -fsS -H "Authorization: Bearer {{ hook_key }}" "{{ hook_base }}/api/hook/added?hash=%I"</code></div>
+  <div><span class="muted">Run on torrent finished</span><code>curl -fsS -H "Authorization: Bearer {{ hook_key }}" "{{ hook_base }}/api/hook/finished?hash=%I"</code></div>
 </div>
+
+<h2 id="tokens">Tokens</h2>
+{% if token_saved %}<div class="flash ok">New token made. Update the places that use the old one.</div>{% endif %}
+<p class="muted">Send tokens as a header (<code>Authorization: Bearer &lt;token&gt;</code> or <code>X-Api-Key</code>), not in a URL: URLs end up in proxy logs and browser history.</p>
+<table>
+  <tr><th style="white-space:nowrap">Hook token</th><td style="word-break:break-all;min-width:27ch"><code>{{ hook_key }}</code></td><td>Only the qBittorrent hooks.</td>
+      <td><form method="post" action="/settings/token/hook_key"><button type="submit" style="white-space:nowrap">Regenerate</button></form></td></tr>
+  <tr><th style="white-space:nowrap">API token</th><td style="word-break:break-all;min-width:27ch">{% if env_key %}<span class="muted">set by <code>PROTECTARR_API_KEY</code> (not shown)</span>{% else %}<code>{{ api_key }}</code>{% endif %}</td><td>Scripts and the JSON API under <code>/api/</code>, including changing settings. Never opens these pages.</td>
+      <td>{% if not env_key %}<form method="post" action="/settings/token/api_key"><button type="submit" style="white-space:nowrap">Regenerate</button></form>{% endif %}</td></tr>
+</table>
 
 <h2 id="login">Login</h2>
 {% if login_saved %}<div class="flash ok">Login saved.</div>{% endif %}
 {% if login_error %}<div class="flash bad">Login not changed: {{ login_error }}</div>{% endif %}
-<p class="muted">{% if login_user %}You log in as <b>{{ login_user }}</b>.{% elif env_key %}You log in with any username and <code>PROTECTARR_API_KEY</code>. Set your own username and password here; after that the API key only works for hooks and scripts.{% else %}You log in with any username and the default password <code>{{ default_password }}</code>. Change it: set your own username and password here.{% endif %} Your browser will ask for the new login after you save. Locked out? Set <code>PROTECTARR_RESET_LOGIN=true</code> on the container, restart it, log in with the API key (or <code>{{ default_password }}</code> if it isn't set), then remove the variable.</p>
+<p class="muted">You log in as <b>{{ login_user }}</b>.{% if login_generated %} <b>You're still using the password generated on first start; set your own now.</b>{% endif %} Your browser will ask for the new login after you save. Locked out? Set <code>PROTECTARR_RESET_LOGIN=true</code> on the container and restart it: a new password is printed in the container log (or <code>PROTECTARR_PASSWORD</code> is used). Then remove the variable.</p>
 <form method="post" action="/settings/login" autocomplete="off">
-<fieldset><legend>{{ "Change login" if login_user else "Set a login" }}</legend>
+<fieldset><legend>Change login</legend>
   <div class="row">
     <label>Current password<input type="password" name="current_password" required autocomplete="current-password"></label>
     <label>Username<input name="username" value="{{ login_user }}" required maxlength="64" autocomplete="username"></label>

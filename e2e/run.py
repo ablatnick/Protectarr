@@ -402,7 +402,7 @@ def main() -> int:
 
     r = urllib.request.Request(PA + "/review/1/allow", method="POST", data=b"",
                                headers={"Origin": "https://evil.example",
-                                        "Authorization": "Basic " + base64.b64encode(f"x:{UI_KEY}".encode()).decode()})
+                                        "Authorization": "Basic " + base64.b64encode(f"e2e:{UI_KEY}".encode()).decode()})
     try:
         urllib.request.urlopen(r, timeout=10)
         code = 200
@@ -418,7 +418,7 @@ def main() -> int:
 
     failed = [n for n, ok, _ in results if not ok]
     print(f"\n== {len(results) - len(failed)}/{len(results)} passed")
-    print(f"   UI: {PA}  (any username, password {UI_KEY})")
+    print(f"   UI: {PA}  (username e2e, password {UI_KEY})")
     if "--down" in sys.argv:
         compose("down")
     return 1 if failed else 0

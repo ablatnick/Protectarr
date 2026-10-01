@@ -23,7 +23,7 @@ from .clamav import ClamdClient
 from .config import ARR_KINDS, Config, apply_connections, connections_of, merge_connections
 from .db import Store
 from .guard import Guard
-from .login import DEFAULT_PASSWORD, Logins
+from .login import Logins
 from .qbit import QbitClient
 from .quarantine import Quarantine
 from .scanner import Scanner
@@ -88,11 +88,25 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
 
     app = FastAPI(title="Protectarr", version=__version__, lifespan=lifespan)
     app.state.guard = guard
+    app.state.warned_url_key = False
     logins = Logins(guard.store)
     if cfg.reset_login and logins.active:
         logins.reset()
-        log.warning("PROTECTARR_RESET_LOGIN is set: the saved username and password were removed. Log in with "
-                    f"PROTECTARR_API_KEY (or {DEFAULT_PASSWORD} if it isn't set), then remove the variable.")
+        log.warning("PROTECTARR_RESET_LOGIN is set: the saved username and password were removed. Remove the "
+                    "variable again, or the login is reset on every start.")
+    try:
+        first_password = logins.ensure(cfg.username, cfg.password)
+    except ValueError as exc:
+        log.error("PROTECTARR_USERNAME/PROTECTARR_PASSWORD not used: %s. Generating a password instead.", exc)
+        first_password = logins.ensure()
+    if first_password:
+        username = logins.get()["username"]
+        log.warning("\n%s\n  Web UI login:  username %s  password %s\n  Shown only now. Change it on the "
+                    "Settings page (or set PROTECTARR_PASSWORD before the first start).\n%s",
+                    "=" * 72, username, first_password, "=" * 72)
+    logins.token("hook_key")
+    if not cfg.api_key:
+        logins.token("api_key")
 
     def _basic(request: Request) -> tuple[str, str] | None:
         auth = request.headers.get("authorization", "")
@@ -104,26 +118,40 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         except Exception:
             return "", ""
 
+    def _header_token(request: Request) -> str:
+        auth = request.headers.get("authorization", "")
+        if auth.lower().startswith("bearer "):
+            return auth[7:].strip()
+        return request.headers.get("x-api-key", "")
+
     def _credentials_given(request: Request) -> bool:
-        return bool(request.query_params.get("key") or request.headers.get("x-api-key")) or \
-            _basic(request) is not None
+        return bool(request.query_params.get("key") or _header_token(request)) or _basic(request) is not None
+
+    def _matches(given: str, expected: str) -> bool:
+        return bool(given and expected) and hmac.compare_digest(given.encode(), expected.encode())
 
     async def _authorized(request: Request) -> bool:
-        login = logins.active
-        # The API key: qBittorrent hooks and scripts (?key= or X-Api-Key). Once you've set your own login, it
-        # only opens the JSON API and hooks, not the pages.
-        key = request.query_params.get("key") or request.headers.get("x-api-key") or ""
-        hook_key = logins.hook_key(cfg.api_key)
-        if key and hook_key and hmac.compare_digest(key.encode(), hook_key.encode()) \
-                and (not login or request.url.path.startswith("/api/")):
+        path = request.url.path
+        header = _header_token(request)
+        # The API token opens /api/, only as a header (URLs end up in proxy logs and browser history).
+        if path.startswith("/api/") and _matches(header, cfg.api_key or logins.token("api_key")):
             return True
+        # The hook token only opens the qBittorrent hooks. qBittorrent can send it as a header too; ?key= works
+        # for older setups.
+        if path.startswith("/api/hook/"):
+            if _matches(header or request.query_params.get("key", ""), logins.token("hook_key")):
+                return True
+            if _matches(request.query_params.get("key", ""), cfg.api_key or logins.token("api_key")):
+                if not app.state.warned_url_key:
+                    app.state.warned_url_key = True
+                    log.warning("a hook passed the API token in its URL; use the hook token from the Settings "
+                                "page instead (the API token can change your settings)")
+                return True
         creds = _basic(request)
         if creds is None:
             return False
-        if login:
-            # Deriving the hash takes a moment; don't hold up the poll loop and other requests meanwhile.
-            return logins.cached(*creds) or await asyncio.to_thread(logins.check, *creds)
-        return hmac.compare_digest(creds[1].encode(), (cfg.api_key or DEFAULT_PASSWORD).encode())
+        # Deriving the hash takes a moment; don't hold up the poll loop and other requests meanwhile.
+        return logins.cached(*creds) or await asyncio.to_thread(logins.check, *creds)
 
     def _same_origin(request: Request) -> bool:
         # Browsers resend Basic credentials on cross-site form posts, so a page elsewhere could press
@@ -247,24 +275,21 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
 
     @app.get("/settings", response_class=HTMLResponse)
     async def settings_page(request: Request, saved: int = 0, error: str = "", login_error: str = "",
-                            login_saved: int = 0):
+                            login_saved: int = 0, token_saved: int = 0):
         status = await run_checks(guard)
         login = logins.get()
         return page(request, "settings.html", status=status, by_name={x["name"]: x for x in status["services"]},
                     conn=connections_of(guard.cfg), kinds=list(ARR_KINDS), hook_base=_hook_base(request),
-                    saved=saved, error=error, login_error=login_error, login_saved=login_saved, login_user=(login or {}).get("username", ""),
-                    env_key=bool(cfg.api_key), default_password=DEFAULT_PASSWORD,
-                    # A generated key is shown so it can be put in the hooks; PROTECTARR_API_KEY never is.
-                    generated_key="" if cfg.api_key or not login else logins.hook_key(""))
+                    saved=saved, error=error, login_error=login_error, login_saved=login_saved, token_saved=token_saved, login_user=(login or {}).get("username", ""),
+                    login_generated=logins.generated, env_key=bool(cfg.api_key), hook_key=logins.token("hook_key"),
+                    # Generated tokens are shown so they can be copied; PROTECTARR_API_KEY never is.
+                    api_key="" if cfg.api_key else logins.token("api_key"))
 
     @app.post("/settings/login")
     async def settings_login(request: Request):
         form = {k: v[-1] for k, v in parse_qs((await request.body()).decode(), keep_blank_values=True).items()}
         current, login = form.get("current_password", ""), logins.get()
-        if login:
-            ok = await asyncio.to_thread(logins.check, login["username"], current)
-        else:
-            ok = hmac.compare_digest(current.encode(), (cfg.api_key or DEFAULT_PASSWORD).encode())
+        ok = bool(login) and await asyncio.to_thread(logins.check, login["username"], current)
         try:
             if not ok:
                 raise ValueError("the current password is wrong")
@@ -276,6 +301,14 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         log.info("the web UI login was changed")
         # The browser's saved login is now wrong, so it asks for the new one.
         return RedirectResponse("/settings?login_saved=1#login", status_code=303)
+
+    @app.post("/settings/token/{name}")
+    async def settings_token(name: str):
+        if name not in ("hook_key", "api_key") or (name == "api_key" and cfg.api_key):
+            raise HTTPException(404)
+        logins.regenerate(name)
+        log.info("the %s was regenerated", "hook token" if name == "hook_key" else "API token")
+        return RedirectResponse("/settings?token_saved=1#tokens", status_code=303)
 
     @app.post("/settings")
     async def settings_save(request: Request):

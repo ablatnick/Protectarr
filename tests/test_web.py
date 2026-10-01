@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from conftest import DEFAULT_LOGIN
+from conftest import DEFAULT_LOGIN, FIRST_PASSWORD
 from protectarr.config import from_dict
 from protectarr.web import create_app
 from test_guard import env  # noqa: F401  (fixture)
@@ -12,15 +12,19 @@ def test_pages_and_auth(env):  # noqa: F811
         {"level": "malicious", "code": "executable", "message": "program file 'a.exe'", "path": "a.exe"}])
     guard.cfg.api_key = "s3cret"
     client = TestClient(create_app(guard.cfg, guard, start_worker=False))
+    login = ("admin", FIRST_PASSWORD)
     assert client.get("/health").status_code == 200
     assert client.get("/").status_code == 401
-    r = client.get("/", auth=("any", "s3cret"))
+    assert client.get("/", auth=("any", "s3cret")).status_code == 401  # the API token never opens pages
+    r = client.get("/", auth=login)
     assert r.status_code == 200 and "Some.Release" in r.text
-    assert client.get("/quarantine", auth=("any", "s3cret")).status_code == 200
-    assert "Nothing is waiting" in client.get("/review", auth=("any", "s3cret")).text
-    assert client.post("/review/99/allow", auth=("any", "s3cret")).status_code == 404
-    assert client.get("/api/hook/added?hash=abc&key=s3cret").status_code == 202
-    assert client.get("/api/hook/nope?hash=abc&key=s3cret").status_code == 404
+    assert client.get("/quarantine", auth=login).status_code == 200
+    assert "Nothing is waiting" in client.get("/review", auth=login).text
+    assert client.post("/review/99/allow", auth=login).status_code == 404
+    bearer = {"Authorization": "Bearer s3cret"}
+    assert client.get("/api/hook/added?hash=abc", headers=bearer).status_code == 202
+    assert client.get("/api/hook/nope?hash=abc", headers=bearer).status_code == 404
+    assert client.get("/api/hook/added?hash=abc&key=s3cret").status_code == 202  # older hook setups
 
 
 def test_config_env_expansion(monkeypatch):

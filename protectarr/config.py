@@ -114,10 +114,14 @@ class Config:
     port: int = 9797
     # Address of the web UI as you open it (behind a reverse proxy, so its form posts are accepted).
     public_url: str = ""
-    # When set, the web UI asks for it (HTTP Basic, any username) and hooks must pass ?key=. After you set your
-    # own username and password on the Settings page, it only opens /api/ (hooks and scripts).
+    # The API token for scripts and the JSON API (sent as a header). Empty: one is generated and shown on the
+    # Settings page. It never opens the web UI.
     api_key: str = ""
-    # Forget the username and password set on the Settings page (for when you're locked out).
+    # The first web UI login, used only while none is saved. Without a password, a random one is generated and
+    # printed once in the log.
+    username: str = ""
+    password: str = ""
+    # Forget the saved username and password (for when you're locked out); a new first login is made on start.
     reset_login: bool = False
     # Where the settings came from, shown on the Connections page.
     source: str = "defaults"
@@ -162,7 +166,7 @@ def from_dict(raw: dict) -> Config:
         path_mappings=[PathMapping(**m) for m in raw.get("path_mappings", [])],
     )
     for key in ("quarantine_dir", "data_dir", "poll_seconds", "port", "api_key", "public_url",
-                "early_checks", "reset_login"):
+                "early_checks", "reset_login", "username", "password"):
         if key in raw:
             setattr(cfg, key, raw[key])
     if "actions" in raw:
@@ -274,6 +278,8 @@ def from_env(env: dict[str, str] | None = None) -> Config:
     cfg.port = int(g("PORT", str(cfg.port)))
     cfg.public_url = g("PUBLIC_URL")
     cfg.api_key = g("PROTECTARR_API_KEY")
+    cfg.username = g("PROTECTARR_USERNAME")
+    cfg.password = g("PROTECTARR_PASSWORD")
     cfg.reset_login = _bool(env.get("PROTECTARR_RESET_LOGIN", ""))
     _validate(cfg)
     return cfg
