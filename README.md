@@ -2,9 +2,9 @@
 
 # Protectarr
 
-Scared to torrent due to security risks? Worry no more (or at least worry less)! Protectarr stands in between your machine and torrent files. I can not take full credit for this creation. As my coding skills are lacking I relied on Claude for a majority of the coding. Sure I could have taken the time and coded this myself (which I have very little of due to being a college student). Although, after a recent scare in my own arr stack and suspicious files downloading onto my homelab. I felt the sooner something like this is created the better! This whole project is open source, please make changes and make your own version of this project! In a world where everything requires a subscription owning your own stuff becomes ever increasingly difficult. I hope this project helps to get homelabbing and owning your own media out there, by adding a little more security and giving people a little more peace of mind.
+Protectarr started after I ran into suspicious releases in my own *arr stack and wanted an extra security layer between qBittorrent, the *arr apps, and my media library. Development was AI-assisted, with the implementation covered by unit and end-to-end tests. It's open source — contributions and forks are welcome. The aim is simple: make self-hosting your own media a little safer, and give people a bit more peace of mind.
 
-Protectarr stops fake and malicious torrent releases before they reach your media library. It sits beside qBittorrent and your *arr apps (Sonarr, Radarr, Lidarr, Readarr, with Prowlarr for indexer reports), checks every download they grab, and has the *arr app blocklist anything bad and search for a different release.
+Protectarr is designed to detect and stop suspicious or malicious torrent releases before they reach your media library. It sits beside qBittorrent and your *arr apps (Sonarr, Radarr, Lidarr, Readarr, with Prowlarr for indexer reports), inspects the downloads they grab, and has the *arr app blocklist bad releases and search for a different one.
 
 It's aimed at the fake releases that turn up on public indexers: a "new episode" that is really `Show.S01E01.mkv.exe`, a movie that's a 2 MB `.wmv` asking you to download a codec, or a password-protected archive with a "get the password here" link.
 
@@ -37,7 +37,7 @@ You can change each action to `block` or `hold`.
 
 <p align="center"><img src="docs/diagrams/stack.png" width="784" alt="How Protectarr fits between the *arr apps, qBittorrent, ClamAV, the media library and quarantine"></p>
 
-qBittorrent and the *arr apps work as usual. Protectarr watches them through their APIs, checks every file before it can be imported, and steps in only when something is wrong. Each download goes through three checkpoints (file list, while downloading, finished files) before an *arr app can import it. [`docs/architecture.md`](docs/architecture.md) walks through a download step by step.
+qBittorrent and the *arr apps work as usual. Protectarr watches them through their APIs, checks downloads before they can be imported, and steps in only when something looks wrong. Each download goes through three checkpoints (file list, while downloading, finished files) before an *arr app can import it. [`docs/architecture.md`](docs/architecture.md) walks through a download step by step.
 
 ## Quick start
 
@@ -65,6 +65,8 @@ Protectarr is a single container. You run qBittorrent (4.5 or later, 5.x recomme
    ```
 
    It needs a few minutes to download its signatures on first start.
+
+   > clamd has no authentication. Don't expose port 3310 beyond your host. The safer options are to put ClamAV and Protectarr on the same Docker network (Protectarr then reaches it as `clamav:3310`, as in `config.example.yml`) and not publish the port at all, or, if you do publish it, bind it to localhost with `-p 127.0.0.1:3310:3310`.
 
 3. **Open `http://your-server:9797/settings`** (user `admin` and the password from the log, or your `PROTECTARR_PASSWORD`), set your own login under **Login**, and enter:
    - qBittorrent's address, username and password,
@@ -220,14 +222,14 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 - **qBittorrent only**, for now. Transmission and Deluge support is planned.
 - **Keep the UI on your LAN** (or behind a VPN or reverse proxy with its own login), and replace the generated password with your own. Wrong passwords lock out an address for a few minutes; behind a reverse proxy that address is the proxy's, so repeated failures there make everyone wait. Behind a reverse proxy, set `PUBLIC_URL` to the address you open it on.
 - **Failed qBittorrent logins back off** (1 minute, doubling up to 15), because qBittorrent bans an address after 5 failures. Saving the Settings page retries straight away.
--  **CAN FAIL** Protectarr can fail or make mistakes! Protectarr is designed to mitigate risks with torrenting. Even though this container has underwent numerous tests there is still a possibility of failure. By downloading this container you understand that this is not your antivirus solution, it is intended as just another layer to protect you. 
+- **It can fail, and false positives happen.** Protectarr is designed to reduce the risk of malicious torrents, not to eliminate it. Even though Protectarr has undergone extensive testing, failures and false positives are still possible. It is not an antivirus solution — treat it as one more layer of protection, not your only one.
 
 ## Antivirus warnings (Windows Defender and others)
 
 Your antivirus may flag Protectarr's files. **Protectarr is not malicious**; it's built to catch malware, so some of its files have to look like malware on purpose:
 
 - **The tests and e2e scripts** (`tests/`, `e2e/`, not in the Docker image) create the [EICAR test file](https://www.eicar.org/download-anti-malware-testfile/) and fake program headers to check that bad downloads are caught. EICAR is a harmless, industry-standard string that every antivirus reports as a "virus" so detection can be tested safely. The source only builds it at runtime, but Windows Defender may still flag files the tests write, or the repo zip. It's safe to allow them, or skip downloading `tests/` and `e2e/` if you only want to run the container.
-- **The quarantine folder** holds the real files Protectarr blocked. If your antivirus flags or deletes something in it, that's it doing its job too; you can exclude the folder or let it clean it up.
+- **The quarantine folder** holds the real files Protectarr blocked, so it may intentionally contain actual malware. If your antivirus flags or deletes something in it, that's expected — it's doing its job. Don't add the quarantine folder to your antivirus exclusions unless you fully understand the implications.
 - **Your downloads folder.** On Windows (Docker Desktop), Defender may scan or remove a bad download before Protectarr gets to it. That's fine: Protectarr then holds the torrent because the files are missing.
 
 If you're unsure, the full source is here to read, and the image is built from it by the [release workflow](.github/workflows/release.yml).
