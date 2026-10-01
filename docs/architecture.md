@@ -4,23 +4,16 @@ GitHub draws the diagrams below. The README covers setup; [`design.md`](design.m
 
 ## The stack
 
-Protectarr is one container beside the ones you already run. It never sits in the download path: qBittorrent downloads and the *arr apps import as usual, and Protectarr steers them through their APIs.
+Protectarr is one container beside the ones you already run. qBittorrent downloads and the *arr apps import as usual; Protectarr watches them through their APIs and steps in only when a file is bad. The table below lists every connection it uses.
 
 ```mermaid
 flowchart LR
-    you(["You"]) -- "web UI<br/>(your login)" --> P
-    PR["Prowlarr"] -- indexers --> ARR["Sonarr · Radarr<br/>Lidarr · Readarr"]
-    ARR -- "grabs a release" --> QB["qBittorrent"]
-    QB -- "writes" --> DL[("downloads<br/>folder")]
-    QB -. "hooks: added / finished<br/>(hook token)" .-> P
-    P["<b>Protectarr</b>"] -- "watches file lists, stops,<br/>starts and removes torrents" --> QB
-    P -- "reads first bytes,<br/>lists archives" --> DL
-    P -- "streams files<br/>(INSTREAM)" --> CL["ClamAV"]
-    P -- "blocklist + search again,<br/>delete a bad import" --> ARR
-    P -- "which indexer" --> PR
-    P -- "moves bad files" --> Q[("quarantine")]
-    DL -- "clean files only" --> ARR
-    ARR -- imports --> LIB[("media library")]
+    ARR["Sonarr · Radarr<br/>Lidarr · Readarr"] -- grabs --> QB["qBittorrent"]
+    QB -- downloads --> P["<b>Protectarr</b><br/>checks every file"]
+    P -- "clean: imported" --> LIB[("Media library")]
+    P -- bad --> Q[("Quarantine")]
+    P -. "blocklist + search again" .-> ARR
+    P <-. scans .-> CL["ClamAV"]
 ```
 
 | Connection | What Protectarr uses it for |

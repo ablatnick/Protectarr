@@ -37,22 +37,15 @@ You can change each action to `block` or `hold`.
 
 ```mermaid
 flowchart LR
-    you(["You"]) -- "web UI<br/>(your login)" --> P
-    PR["Prowlarr"] -- indexers --> ARR["Sonarr · Radarr<br/>Lidarr · Readarr"]
-    ARR -- "grabs a release" --> QB["qBittorrent"]
-    QB -- "writes" --> DL[("downloads<br/>folder")]
-    QB -. "hooks: added / finished<br/>(hook token)" .-> P
-    P["<b>Protectarr</b>"] -- "watches file lists, stops,<br/>starts and removes torrents" --> QB
-    P -- "reads first bytes,<br/>lists archives" --> DL
-    P -- "streams files<br/>(INSTREAM)" --> CL["ClamAV"]
-    P -- "blocklist + search again,<br/>delete a bad import" --> ARR
-    P -- "which indexer" --> PR
-    P -- "moves bad files" --> Q[("quarantine")]
-    DL -- "clean files only" --> ARR
-    ARR -- imports --> LIB[("media library")]
+    ARR["Sonarr · Radarr<br/>Lidarr · Readarr"] -- grabs --> QB["qBittorrent"]
+    QB -- downloads --> P["<b>Protectarr</b><br/>checks every file"]
+    P -- "clean: imported" --> LIB[("Media library")]
+    P -- bad --> Q[("Quarantine")]
+    P -. "blocklist + search again" .-> ARR
+    P <-. scans .-> CL["ClamAV"]
 ```
 
-Protectarr never sits in the download path: qBittorrent and the *arr apps work as usual, and Protectarr steers them through their APIs. Each download goes through three checkpoints (file list, while downloading, finished files) before an *arr app can import it. [`docs/architecture.md`](docs/architecture.md) walks through a download step by step.
+qBittorrent and the *arr apps work as usual. Protectarr watches them through their APIs, checks every file before it can be imported, and steps in only when something is wrong. Each download goes through three checkpoints (file list, while downloading, finished files) before an *arr app can import it. [`docs/architecture.md`](docs/architecture.md) walks through a download step by step.
 
 ## Quick start
 
