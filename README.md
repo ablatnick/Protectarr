@@ -132,7 +132,6 @@ Protectarr works alongside these. None are required except qBittorrent and at le
 | Radarr | Movies | [Radarr/Radarr](https://github.com/Radarr/Radarr) |
 | Lidarr | Music | [Lidarr/Lidarr](https://github.com/Lidarr/Lidarr) |
 | Bookshelf | Books and audiobooks: a maintained fork of Readarr, which has been retired. Add it in Protectarr as type Readarr | [pennydreadful/bookshelf](https://github.com/pennydreadful/bookshelf) · [Readarr (archived)](https://github.com/Readarr/Readarr) |
-| Whisparr | Adult content | [Whisparr/Whisparr](https://github.com/Whisparr/Whisparr) |
 | Prowlarr | Manages indexers for all of the above; connect it to Protectarr to see which indexers send bad releases | [Prowlarr/Prowlarr](https://github.com/Prowlarr/Prowlarr) |
 
 ## Web UI
