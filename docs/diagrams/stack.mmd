@@ -1,0 +1,7 @@
+flowchart LR
+    ARR["Sonarr · Radarr<br/>Lidarr · Readarr"] -- grabs --> QB["qBittorrent"]
+    QB -- downloads --> P["<b>Protectarr</b><br/>checks every file"]
+    P -- "clean: imported" --> LIB[("Media library")]
+    P -- bad --> Q[("Quarantine")]
+    P -. "blocklist + search again" .-> ARR
+    P <-. scans .-> CL["ClamAV"]

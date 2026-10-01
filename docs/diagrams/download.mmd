@@ -1,0 +1,14 @@
+flowchart TD
+    A["*arr app sends a torrent<br/>to qBittorrent"] --> B{"1. File list<br/>(before any data)"}
+    B -- "program, disguised name,<br/>archive, lure file" --> BLOCK
+    B -- "looks fine" --> C["Start the download<br/>(qBittorrent paused it at<br/>'Metadata received')"]
+    C --> D{"2. While downloading:<br/>real type from each<br/>file's first piece"}
+    D -- "a program pretending<br/>to be a video" --> BLOCK
+    D -- ok --> E{"3. Each finished file:<br/>real type, archive contents,<br/>ClamAV"}
+    E -- malicious --> BLOCK
+    E -- suspicious --> HOLD["<b>Hold</b><br/>torrent stopped, files locked away,<br/>waits on the Review page"]
+    E -- clean --> IMPORT["*arr app imports it"]
+    HOLD -- Allow --> IMPORT
+    HOLD -- Deny --> BLOCK
+    BLOCK["<b>Block</b><br/>torrent stopped, files to quarantine,<br/>removed from the *arr queue with blocklisting,<br/>*arr searches for another release"]
+    IMPORT -. "found bad after an import race<br/>(e.g. Protectarr was down)" .-> CLEAN["Delete the imported file via the *arr app,<br/>mark the grab failed (blocklist + search again)"]

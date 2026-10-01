@@ -1,0 +1,7 @@
+flowchart LR
+    U(["Web UI login<br/>username + password"]) --> PAGES["Pages<br/>(Activity, Review, Settings…)"]
+    U --> API["JSON API<br/>/api/…"]
+    U --> HOOKS["Hooks<br/>/api/hook/…"]
+    T(["API token<br/>header only"]) --> API
+    T --> HOOKS
+    H(["Hook token<br/>header or ?key="]) --> HOOKS

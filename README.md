@@ -35,15 +35,7 @@ You can change each action to `block` or `hold`.
 
 ## How it works
 
-```mermaid
-flowchart LR
-    ARR["Sonarr · Radarr<br/>Lidarr · Readarr"] -- grabs --> QB["qBittorrent"]
-    QB -- downloads --> P["<b>Protectarr</b><br/>checks every file"]
-    P -- "clean: imported" --> LIB[("Media library")]
-    P -- bad --> Q[("Quarantine")]
-    P -. "blocklist + search again" .-> ARR
-    P <-. scans .-> CL["ClamAV"]
-```
+<p align="center"><img src="docs/diagrams/stack.png" width="784" alt="How Protectarr fits between the *arr apps, qBittorrent, ClamAV, the media library and quarantine"></p>
 
 qBittorrent and the *arr apps work as usual. Protectarr watches them through their APIs, checks every file before it can be imported, and steps in only when something is wrong. Each download goes through three checkpoints (file list, while downloading, finished files) before an *arr app can import it. [`docs/architecture.md`](docs/architecture.md) walks through a download step by step.
 

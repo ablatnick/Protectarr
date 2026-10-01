@@ -1,20 +1,12 @@
 # How Protectarr fits into your stack
 
-GitHub draws the diagrams below. The README covers setup; [`design.md`](design.md) explains why it's built this way.
+The diagrams are images rendered from the Mermaid sources in [`diagrams/`](diagrams) (`docker run --rm -v "$PWD/docs/diagrams:/data" minlag/mermaid-cli -i stack.mmd -o stack.png -b white -s 2`). The README covers setup; [`design.md`](design.md) explains why it's built this way.
 
 ## The stack
 
 Protectarr is one container beside the ones you already run. qBittorrent downloads and the *arr apps import as usual; Protectarr watches them through their APIs and steps in only when a file is bad. The table below lists every connection it uses.
 
-```mermaid
-flowchart LR
-    ARR["Sonarr · Radarr<br/>Lidarr · Readarr"] -- grabs --> QB["qBittorrent"]
-    QB -- downloads --> P["<b>Protectarr</b><br/>checks every file"]
-    P -- "clean: imported" --> LIB[("Media library")]
-    P -- bad --> Q[("Quarantine")]
-    P -. "blocklist + search again" .-> ARR
-    P <-. scans .-> CL["ClamAV"]
-```
+<p align="center"><img src="diagrams/stack.png" width="784" alt="How Protectarr fits between the *arr apps, qBittorrent, ClamAV, the media library and quarantine"></p>
 
 | Connection | What Protectarr uses it for |
 |---|---|
@@ -27,35 +19,12 @@ flowchart LR
 
 ## What happens to a download
 
-```mermaid
-flowchart TD
-    A["*arr app sends a torrent<br/>to qBittorrent"] --> B{"1. File list<br/>(before any data)"}
-    B -- "program, disguised name,<br/>archive, lure file" --> BLOCK
-    B -- "looks fine" --> C["Start the download<br/>(qBittorrent paused it at<br/>'Metadata received')"]
-    C --> D{"2. While downloading:<br/>real type from each<br/>file's first piece"}
-    D -- "a program pretending<br/>to be a video" --> BLOCK
-    D -- ok --> E{"3. Each finished file:<br/>real type, archive contents,<br/>ClamAV"}
-    E -- malicious --> BLOCK
-    E -- suspicious --> HOLD["<b>Hold</b><br/>torrent stopped, files locked away,<br/>waits on the Review page"]
-    E -- clean --> IMPORT["*arr app imports it"]
-    HOLD -- Allow --> IMPORT
-    HOLD -- Deny --> BLOCK
-    BLOCK["<b>Block</b><br/>torrent stopped, files to quarantine,<br/>removed from the *arr queue with blocklisting,<br/>*arr searches for another release"]
-    IMPORT -. "found bad after an import race<br/>(e.g. Protectarr was down)" .-> CLEAN["Delete the imported file via the *arr app,<br/>mark the grab failed (blocklist + search again)"]
-```
+<p align="center"><img src="diagrams/download.png" width="520" alt="What happens to a download: file list check, checks while downloading, finished-file scan, then block, hold or import"></p>
 
 Anything Protectarr can't check counts as suspicious, not clean: files it can't find or read, or ClamAV being down. Downloads held only because ClamAV was down are scanned again once it's back.
 
 ## Who can open what
 
-```mermaid
-flowchart LR
-    U(["Web UI login<br/>username + password"]) --> PAGES["Pages<br/>(Activity, Review, Settings…)"]
-    U --> API["JSON API<br/>/api/…"]
-    U --> HOOKS["Hooks<br/>/api/hook/…"]
-    T(["API token<br/>header only"]) --> API
-    T --> HOOKS
-    H(["Hook token<br/>header or ?key="]) --> HOOKS
-```
+<p align="center"><img src="diagrams/access.png" width="436" alt="Which credential opens what: the web UI login opens everything, the API token opens the JSON API and hooks, the hook token opens only the hooks"></p>
 
 The hook token lives in qBittorrent's settings and can end up in its logs, so it opens nothing but the hooks. The API token can change settings, so it's only accepted as a header (never in a URL). Neither opens the web pages.
