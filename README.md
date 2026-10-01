@@ -1,4 +1,4 @@
-<img width="750" height="750" alt="Protectarr logo" src="https://github.com/user-attachments/assets/a87db8a0-497c-48fd-b87e-9ff9f1521b6b" />
+<img width="750" height="750" alt="Pixel-Art Blue Shield Emblem" src="https://github.com/user-attachments/assets/8cbfd4c3-f1e1-44bd-a2c3-34ecc8d42b22" />
 
 # Protectarr
 
