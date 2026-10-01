@@ -65,15 +65,15 @@ def test_too_short_first_password_falls_back_to_a_generated_one(env, caplog):  #
 def test_change_login(env):  # noqa: F811
     guard, *_ = env
     c = client_for(guard)
-    r = change(c, FIRST, current_password=FIRST_PASSWORD, username="alec",
+    r = change(c, FIRST, current_password=FIRST_PASSWORD, username="owner",
                new_password="n3w-password", confirm_password="n3w-password")
     assert r.status_code == 303 and "login_saved" in r.headers["location"]
     assert c.get("/", auth=FIRST).status_code == 401
-    assert c.get("/", auth=("alec", "n3w-password")).status_code == 200
-    page = c.get("/settings", auth=("alec", "n3w-password")).text
-    assert "You log in as <b>alec</b>" in page and "generated on first start" not in page
+    assert c.get("/", auth=("owner", "n3w-password")).status_code == 200
+    page = c.get("/settings", auth=("owner", "n3w-password")).text
+    assert "You log in as <b>owner</b>" in page and "generated on first start" not in page
     assert "n3w-password" not in str(guard.store.get_setting("login"))
-    r = change(c, ("alec", "n3w-password"), current_password=FIRST_PASSWORD, username="alec",
+    r = change(c, ("owner", "n3w-password"), current_password=FIRST_PASSWORD, username="owner",
                new_password="password-two", confirm_password="password-two")
     assert "login_error" in r.headers["location"]  # the old password isn't the current one any more
 
@@ -142,10 +142,10 @@ def test_env_api_key_is_never_shown_or_regenerated(env):  # noqa: F811
 def test_older_setups_keep_working(env, caplog):  # noqa: F811
     guard, *_ = env
     # Earlier versions kept the hook key with the login, and hooks passed the API key in the URL.
-    guard.store.set_setting("login", {"username": "alec", "password": hash_password("old-password"),
+    guard.store.set_setting("login", {"username": "owner", "password": hash_password("old-password"),
                                       "hook_key": "old-hook-key"})
     c = client_for(guard, api_key="env-key")
-    assert c.get("/", auth=("alec", "old-password")).status_code == 200
+    assert c.get("/", auth=("owner", "old-password")).status_code == 200
     assert c.get("/api/hook/added?hash=abc&key=old-hook-key").status_code == 202
     with caplog.at_level(logging.WARNING):
         assert c.get("/api/hook/added?hash=abc&key=env-key").status_code == 202
@@ -155,14 +155,14 @@ def test_older_setups_keep_working(env, caplog):  # noqa: F811
 def test_reset_login(env, caplog):  # noqa: F811
     guard, *_ = env
     c = client_for(guard)
-    change(c, FIRST, current_password=FIRST_PASSWORD, username="alec",
+    change(c, FIRST, current_password=FIRST_PASSWORD, username="owner",
            new_password="forgotten-pw", confirm_password="forgotten-pw")
     guard.cfg.reset_login = True
     with caplog.at_level(logging.WARNING):
         c = client_for(guard)
     assert FIRST_PASSWORD in caplog.text  # a new password, printed in the log
     assert c.get("/", auth=FIRST).status_code == 200
-    assert c.get("/", auth=("alec", "forgotten-pw")).status_code == 401
+    assert c.get("/", auth=("owner", "forgotten-pw")).status_code == 401
 
 
 def test_password_guessing_is_slowed_down(env):  # noqa: F811

@@ -108,7 +108,7 @@ Each file gets **clean**, **suspicious** or **malicious**, with the reasons. A t
 - **Feed back to the *arr app:** remove from queue with `blocklist=true` so it searches for another release (section 3.3).
 - **Release-level blocklist:** keep a local record of bad info-hashes and release names so the same torrent re-added from another indexer is refused at the metadata stage.
 - **Restore and delete:** a user can release a false positive back to the download folder (and remove it from the blocklist) or delete it permanently from the UI.
-- **Alerts:** Discord/Telegram/email via Apprise, plus a webhook, so it plugs into existing homelab notifications.
+- **Alerts:** Discord/Telegram/email via Apprise, plus a webhook, so it plugs into existing homelab notifications. _(Apprise was built and later removed; notifications are planned as a separate feature.)_
 - **Audit log:** every decision recorded in SQLite and viewable in the UI.
 
 ## 6. Suggested MVP
@@ -122,7 +122,7 @@ In scope:
 3. Completion-stage file-type check, archive listing (including password detection), and ClamAV scan.
 4. Quarantine folder with JSON records and restore/delete.
 5. Sonarr and Radarr queue removal with blocklisting.
-6. A minimal web UI: recent verdicts, quarantine list, settings. Plus Apprise notifications.
+6. A minimal web UI: recent verdicts, quarantine list, settings. Plus Apprise notifications (later removed).
 7. One Docker Compose file with Protectarr and ClamAV.
 
 Out of scope for the MVP: YARA, VirusTotal, other torrent clients, a strict import gate, on-access (fanotify) blocking, Windows service packaging, and any sandbox or behavioural analysis.
@@ -131,7 +131,7 @@ Out of scope for the MVP: YARA, VirusTotal, other torrent clients, a strict impo
 
 Most *arr users run Docker on Linux, Unraid or a NAS, so Protectarr should ship as a container first.
 
-- **Language:** Python 3.12+. It has the best libraries for every piece: `qbittorrent-api`, `python-magic` (libmagic), `yara-python`, a small clamd socket client, `apprise`, and `httpx` for the *arr APIs. Go is a reasonable alternative for a single static binary, but its YARA and libmagic bindings need cgo and the ecosystem is thinner.
+- **Language:** Python 3.12+. It has the best libraries for every piece: `qbittorrent-api`, `python-magic` (libmagic), `yara-python`, a small clamd socket client, `apprise` (since dropped), and `httpx` for the *arr APIs. Go is a reasonable alternative for a single static binary, but its YARA and libmagic bindings need cgo and the ecosystem is thinner.
 - **Service:** FastAPI for the web UI, hook endpoints and REST API; an asyncio worker for polling and a scan queue.
 - **Storage:** SQLite for verdicts, blocklist and audit log.
 - **Scanner:** the official `clamav/clamav` container as a sidecar, sharing the downloads volume read-only.

@@ -22,7 +22,7 @@
   </div>
 </fieldset>
 
-<fieldset><legend>Sonarr, Radarr, Lidarr, Readarr, Whisparr</legend>
+<fieldset><legend>Sonarr, Radarr, Lidarr, Readarr</legend>
   <p class="muted" style="margin-top:0">API key: Settings &gt; General &gt; Security in each app. Protectarr reads which qBittorrent category each app uses from its Download Clients settings; fill in categories only if that doesn't work.</p>
   {% for a in conn.arr %}
   {{ state(a.name) }}

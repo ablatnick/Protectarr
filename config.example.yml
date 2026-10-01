@@ -12,7 +12,7 @@ qbittorrent:
   # once its file list passes. Nothing downloads before it's checked.
   resume_after_metadata_check: true
 
-# kind: sonarr | radarr | lidarr | readarr | whisparr. Add as many as you run (e.g. a second Radarr for 4K).
+# kind: sonarr | radarr | lidarr | readarr. Add as many as you run (e.g. a second Radarr for 4K).
 arr:
   - name: Sonarr
     kind: sonarr

@@ -9,6 +9,8 @@
   - Tokens can be regenerated on the Settings page. `PROTECTARR_RESET_LOGIN=true` replaces a forgotten login with a new generated one. After 10 wrong passwords or tokens in 5 minutes an address is refused (even with the right password) for a few minutes, and checking a password never holds up scanning.
   - Older setups keep working: a saved login, the old hook key, and hooks passing `PROTECTARR_API_KEY` as `?key=` (with a warning in the log).
 
+- **Non-root image:** the Docker image runs as `1000:1000` by default; set `user:` to qBittorrent's `PUID:PGID` as before.
+
 - **Logo:** the pixel-art blue shield (`docs/logo.png`) is Protectarr's logo, in the README and as the web UI's header icon and favicon.
 
 - **Architecture diagrams:** the README has a stack diagram, and [`docs/architecture.md`](docs/architecture.md) walks through a download and the credentials.

@@ -4,7 +4,7 @@
 
 Scared to torrent due to security risks? Worry no more (or at least worry less)! Protectarr stands in between your machine and torrent files. I can not take full credit for this creation. As my coding skills are lacking I relied on Claude for a majority of the coding. Sure I could have taken the time and coded this myself (which I have very little of due to being a college student). Although, after a recent scare in my own arr stack and suspicious files downloading onto my homelab. I felt the sooner something like this is created the better! This whole project is open source, please make changes and make your own version of this project! In a world where everything requires a subscription owning your own stuff becomes ever increasingly difficult. I hope this project helps to get homelabbing and owning your own media out there, by adding a little more security and giving people a little more peace of mind.
 
-Protectarr stops fake and malicious torrent releases before they reach your media library. It sits beside qBittorrent and your *arr apps (Sonarr, Radarr, Lidarr, Readarr, Whisparr, with Prowlarr for indexer reports), checks every download they grab, and has the *arr app blocklist anything bad and search for a different release.
+Protectarr stops fake and malicious torrent releases before they reach your media library. It sits beside qBittorrent and your *arr apps (Sonarr, Radarr, Lidarr, Readarr, with Prowlarr for indexer reports), checks every download they grab, and has the *arr app blocklist anything bad and search for a different release.
 
 It's aimed at the fake releases that turn up on public indexers: a "new episode" that is really `Show.S01E01.mkv.exe`, a movie that's a 2 MB `.wmv` asking you to download a codec, or a password-protected archive with a "get the password here" link.
 
@@ -86,7 +86,7 @@ On its first connection Protectarr leaves torrents that had already finished alo
 | Service | What you get |
 |---|---|
 | **qBittorrent** | Required. Protectarr watches it, stops bad torrents and restarts clean ones |
-| **Sonarr, Radarr, Whisparr** | Their categories are checked with TV or movie rules; bad releases are blocklisted there and re-searched |
+| **Sonarr, Radarr** | Their categories are checked with TV or movie rules; bad releases are blocklisted there and re-searched |
 | **Lidarr** | Music rules for its category (cue sheets, rip logs and booklets are fine) |
 | **Readarr** (or a fork such as Bookshelf) | Book and audiobook rules for its category |
 | **A second instance** (4K, anime…) | Add it as another row and give it a name like "Radarr 4K" |
@@ -182,7 +182,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `QBIT_RESUME_AFTER_CHECK` | `true` | Start torrents that qBittorrent's stop condition held once their file list passes |
 | `QBIT_RESUME_OTHER_CATEGORIES` | `true` | Start new torrents in other categories that qBittorrent's stop condition held (only ones added in the last 2 minutes, or while Protectarr was down) |
 | `QBIT_CATEGORIES` | empty | Check only these categories instead of the ones read from the *arr apps |
-| `<APP>_URL`, `<APP>_API_KEY` | | `<APP>` is `SONARR`, `RADARR`, `LIDARR`, `READARR` or `WHISPARR`, optionally with a suffix (`RADARR_4K_URL`) |
+| `<APP>_URL`, `<APP>_API_KEY` | | `<APP>` is `SONARR`, `RADARR`, `LIDARR` or `READARR`, optionally with a suffix (`RADARR_4K_URL`) |
 | `<APP>_CATEGORIES` | empty | Categories for that app, if it can't be read from its settings |
 | `PROWLARR_URL`, `PROWLARR_API_KEY` | empty | |
 | `CLAMAV_ENABLED` | `true` | |
