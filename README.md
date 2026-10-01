@@ -61,12 +61,15 @@ Protectarr is a single container. You run qBittorrent (4.5 or later, 5.x recomme
 2. **Start ClamAV** if you don't run it already (optional, but recommended):
 
    ```
-   docker run -d --name clamav -p 3310:3310 -v ./clamav:/var/lib/clamav clamav/clamav:stable
+   docker run -d --name clamav \
+     -p 127.0.0.1:3310:3310 \
+     -v ./clamav:/var/lib/clamav \
+     clamav/clamav:stable
    ```
 
    It needs a few minutes to download its signatures on first start.
 
-   > clamd has no authentication. Don't expose port 3310 beyond your host. The safer options are to put ClamAV and Protectarr on the same Docker network (Protectarr then reaches it as `clamav:3310`, as in `config.example.yml`) and not publish the port at all, or, if you do publish it, bind it to localhost with `-p 127.0.0.1:3310:3310`.
+   > clamd has no authentication, so the command above binds its port to localhost only. Don't expose port 3310 beyond your host. Better still, put ClamAV and Protectarr on the same Docker network and don't publish the port at all — Protectarr then reaches it as `clamav:3310`, as in `config.example.yml`.
 
 3. **Open `http://your-server:9797/settings`** (user `admin` and the password from the log, or your `PROTECTARR_PASSWORD`), set your own login under **Login**, and enter:
    - qBittorrent's address, username and password,
