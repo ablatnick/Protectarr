@@ -1,4 +1,4 @@
-<img width="750" height="750" alt="Pixel-Art Blue Shield Emblem" src="https://github.com/user-attachments/assets/8cbfd4c3-f1e1-44bd-a2c3-34ecc8d42b22" />
+<img width="750" height="750" alt="The Shield of Protectarr" src="https://github.com/user-attachments/assets/8cbfd4c3-f1e1-44bd-a2c3-34ecc8d42b22" />
 
 # Protectarr
 
