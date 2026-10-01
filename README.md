@@ -2,7 +2,7 @@
 
 # Protectarr
 
-Protectarr started after I ran into suspicious releases in my own *arr stack and wanted an extra security layer between qBittorrent, the *arr apps, and my media library. Development was AI-assisted, with the implementation covered by unit and end-to-end tests. It's open source — contributions and forks are welcome. The aim is simple: make self-hosting your own media a little safer, and give people a bit more peace of mind.
+Scared to torrent due to security risks? Worry no more (or at least worry less)! Protectarr stands in between your machine and torrent files. I can not take full credit for this creation. As my coding skills are lacking I relied on Claude for a majority of the coding. Sure I could have taken the time and coded this myself (which I have very little of due to being a college student). Although, after a recent scare in my own arr stack and suspicious files downloading onto my homelab. I felt the sooner something like this is created the better! This whole project is open source, please make changes and make your own version of this project! In a world where everything requires a subscription owning your own stuff becomes ever increasingly difficult. I hope this project helps to get homelabbing and owning your own media out there, by adding a little more security and giving people a little more peace of mind.
 
 Protectarr is designed to detect and stop suspicious or malicious torrent releases before they reach your media library. It sits beside qBittorrent and your *arr apps (Sonarr, Radarr, Lidarr, Readarr, with Prowlarr for indexer reports), inspects the downloads they grab, and has the *arr app blocklist bad releases and search for a different one.
 
