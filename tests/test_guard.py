@@ -142,6 +142,20 @@ async def test_real_video_passes_both_stages(env):
     assert f.exists() and not sonarr.deleted
 
 
+async def test_queued_magnet_without_metadata_waits(env):
+    # qBittorrent queues magnets past its active-download limit before fetching their metadata: no files yet.
+    guard, qb, sonarr, _ = env
+    qb.add("mmm", "Show.S01E05", [], state="queuedDL")
+    await guard.poll()
+    assert guard.store.torrent("mmm") is None or guard.store.torrent("mmm")["metadata_level"] is None
+    assert not guard.store.pending_decisions() and not qb.called("/torrents/stop")
+
+    qb.files["mmm"] = [{"name": "Show.S01E05/Show.S01E05.mkv", "size": 400 * MB, "priority": 1}]
+    qb.torrents["mmm"]["state"] = "stoppedDL"
+    await guard.poll()
+    assert guard.store.torrent("mmm")["metadata_level"] == "clean"
+
+
 async def test_other_categories_ignored(env):
     guard, qb, _, _ = env
     qb.add("eee", "Some.Linux.ISO", [("setup.exe", 1 * MB)], category="software")

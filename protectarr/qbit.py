@@ -138,7 +138,9 @@ class QbitClient:
 
 
 def has_metadata(t: dict) -> bool:
-    return t.get("state") not in NO_METADATA_STATES
+    # A magnet that's queued or stopped before its metadata arrived isn't in metaDL, so also trust qBittorrent's
+    # own flag (5.x sends it) when it's there.
+    return t.get("state") not in NO_METADATA_STATES and t.get("has_metadata", True) is not False
 
 
 def is_complete(t: dict) -> bool:

@@ -308,6 +308,10 @@ class Guard:
         h, name, cat = t["hash"], t["name"], t.get("category", "")
         profile = self.profile(cat)
         files = await self.qbit.files(h)
+        if not files:
+            # Every torrent has at least one file, so this one's metadata hasn't arrived yet (a queued or stopped
+            # magnet). Check it on a later poll rather than calling it a release with no video.
+            return False
         verdict = check_metadata(
             [TorrentFile(f["name"], f["size"]) for f in files],
             self.cfg.min_video_bytes(cat, profile), self.cfg.rules.allow_archives,
