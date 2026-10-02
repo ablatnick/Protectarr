@@ -32,6 +32,7 @@ from .scanner import Scanner
 from .status import run_checks
 
 log = logging.getLogger(__name__)
+PAGE_SIZE = 100  # results per page on the Activity page
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 templates.env.filters["ago"] = lambda ts: _ago(ts)
 
@@ -196,11 +197,15 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         return {"ok": True, "version": __version__}
 
     @app.get("/", response_class=HTMLResponse)
-    async def dashboard(request: Request):
+    async def dashboard(request: Request, before: int | None = None):
         clam_ok = await guard.scanner.clamd.ping() if guard.scanner.clamd else None
-        events = guard.store.events(100)
-        return page(request, "dashboard.html", events=events,
-                    blocked=sum(1 for e in events if e["action"].startswith("blocked")),
+        # One extra row tells whether there's an older page.
+        events = guard.store.events(PAGE_SIZE + 1, before)
+        older = events[PAGE_SIZE - 1]["id"] if len(events) > PAGE_SIZE else None
+        recent = events if before is None else guard.store.events(PAGE_SIZE)
+        return page(request, "dashboard.html", events=events[:PAGE_SIZE], older=older, paged=before is not None,
+                    history_days=guard.cfg.history_days,
+                    blocked=sum(1 for e in recent[:PAGE_SIZE] if e["action"].startswith("blocked")),
                     pending=len(guard.store.pending_decisions()), held=len(guard.store.quarantine_items()),
                     clam_ok=clam_ok, watched=sum(1 for c in guard.category_table() if c["watched"]),
                     setup_done=guard.qbit.configured and bool(guard.arrs or guard.cfg.qbittorrent.categories))
@@ -279,12 +284,14 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
 
     @app.get("/settings", response_class=HTMLResponse)
     async def settings_page(request: Request, saved: int = 0, error: str = "", login_error: str = "",
-                            login_saved: int = 0, token_saved: int = 0, rules_saved: int = 0, rules_error: str = ""):
+                            login_saved: int = 0, token_saved: int = 0, rules_saved: int = 0, rules_error: str = "",
+                            history_saved: int = 0, history_error: str = ""):
         status = await run_checks(guard)
         login = logins.get()
         return page(request, "settings.html", status=status, by_name={x["name"]: x for x in status["services"]},
                     conn=connections_of(guard.cfg), kinds=list(ARR_KINDS), hook_base=_hook_base(request),
                     saved=saved, error=error, rules_saved=rules_saved, rules_error=rules_error,
+                    history_saved=history_saved, history_error=history_error, history_days=guard.cfg.history_days,
                     allowed_extensions=guard.cfg.rules.allowed_extensions, allowed_programs=_programs(guard.cfg),
                     login_error=login_error, login_saved=login_saved, token_saved=token_saved, login_user=(login or {}).get("username", ""),
                     login_generated=logins.generated, env_key=bool(cfg.api_key), hook_key=logins.token("hook_key"),
@@ -334,6 +341,15 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
             return RedirectResponse(f"/settings?rules_error={_quote(str(exc))}#rules", status_code=303)
         return RedirectResponse("/settings?rules_saved=1#rules", status_code=303)
 
+    @app.post("/settings/history")
+    async def settings_history(request: Request):
+        form = {k: v[-1] for k, v in parse_qs((await request.body()).decode(), keep_blank_values=True).items()}
+        try:
+            _save_rules({"history_days": _int(form.get("history_days", ""), "Days to keep")})
+        except ValueError as exc:
+            return RedirectResponse(f"/settings?history_error={_quote(str(exc))}#history", status_code=303)
+        return RedirectResponse("/settings?history_saved=1#history", status_code=303)
+
     @app.get("/api/rules")
     async def rules_api():
         return rules_of(guard.cfg)
@@ -354,9 +370,14 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         apply_rules(guard.cfg, merged)
         guard.scanner.allowed_extensions = set(guard.cfg.rules.allowed_extensions)
         guard.store.set_setting("rules", rules_of(guard.cfg))
-        allowed = ", ".join(guard.cfg.rules.allowed_extensions) or "none"
-        log.info("allowed file types changed on the Settings page: %s", allowed)
-        if _programs(guard.cfg):
+        if "allowed_extensions" in submitted:
+            log.info("allowed file types changed on the Settings page: %s",
+                     ", ".join(guard.cfg.rules.allowed_extensions) or "none")
+        if "history_days" in submitted:
+            log.info("activity history: keeping clean results %s", f"{guard.cfg.history_days} days"
+                     if guard.cfg.history_days else "forever")
+            guard.prune_history()
+        if "allowed_extensions" in submitted and _programs(guard.cfg):
             log.warning("program file types are allowed (%s): only ClamAV now checks them",
                         ", ".join(_programs(guard.cfg)))
 
@@ -406,8 +427,9 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         return {"queued": hash}
 
     @app.get("/api/events")
-    async def events(limit: int = 100):
-        return guard.store.events(min(limit, 1000))
+    async def events(limit: int = 100, before: int | None = None):
+        """Newest first. For the next page, pass the last event's id as before."""
+        return guard.store.events(max(1, min(limit, 1000)), before)
 
     @app.get("/api/quarantine")
     async def quarantine_api():

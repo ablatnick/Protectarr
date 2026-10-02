@@ -26,6 +26,7 @@ EARLY_CHECK_SECONDS = 10  # how often a downloading torrent's files are looked a
 MAX_CONTENT_ATTEMPTS = 3
 HEARTBEAT_SECONDS = 60
 RECHECK_SECONDS = 60  # how often held downloads that ClamAV couldn't scan are tried again
+PRUNE_SECONDS = 6 * 3600  # how often old clean results are removed from the Activity page
 
 
 class Guard:
@@ -47,6 +48,7 @@ class Guard:
         self._first_poll_done = False
         self._alive_at = float("-inf")
         self._recheck_at = float("-inf")
+        self._prune_at = float("-inf")
         self._restopped: set[str] = set()
         self._others_seen: set[str] = set()
         self._content_failures: dict[str, int] = {}
@@ -160,9 +162,21 @@ class Guard:
                 if time.monotonic() - self._recheck_at > RECHECK_SECONDS:
                     self._recheck_at = time.monotonic()
                     await self.recheck_unscanned()
+                if time.monotonic() - self._prune_at > PRUNE_SECONDS:
+                    self._prune_at = time.monotonic()
+                    self.prune_history()
             except Exception:
                 log.exception("poll failed")
             await asyncio.sleep(self.cfg.poll_seconds)
+
+    def prune_history(self) -> int:
+        """Remove clean results older than history_days (0 keeps everything)."""
+        if self.cfg.history_days <= 0:
+            return 0
+        n = self.store.prune_events(time.time() - self.cfg.history_days * 86400)
+        if n:
+            log.info("removed %d clean result(s) older than %d days from the activity history", n, self.cfg.history_days)
+        return n
 
     async def poll(self) -> None:
         if not self.qbit.configured:

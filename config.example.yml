@@ -65,6 +65,7 @@ path_mappings: []
 quarantine_dir: /quarantine
 data_dir: /config
 poll_seconds: 5
+history_days: 90                 # days to keep clean results on the Activity page; 0 keeps everything
 
 # How you open the web UI, if that's through a reverse proxy (so its form posts are accepted).
 public_url: http://your-server:9797

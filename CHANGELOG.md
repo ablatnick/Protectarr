@@ -2,6 +2,8 @@
 
 ## 0.4.0
 
+- **Activity history:** the Activity page pages back through older results (100 per page, also `GET /api/events?before=<id>`). Clean results older than 90 days are removed every 6 hours; change it under Settings > Activity history (or `HISTORY_DAYS` / `history_days`, `0` keeps everything). Blocked, held and denied results are always kept, so the Indexers page counts don't change.
+
 - **Allowed file types:** Settings > Allowed file types (or `ALLOWED_EXTENSIONS` / `rules.allowed_extensions`, or `GET`/`POST /api/rules`) lists extensions that shouldn't be flagged, for when Protectarr holds or blocks releases for a file type you're fine with. What's inside those files is still checked: a file that isn't really its extension's type, `Movie.mkv.exe`-style names, hidden right-to-left characters, lure names, password-protected archives and ClamAV detections are still caught. Allowing a program type shows a warning.
 
 - **Logins and tokens, kept apart:** the web UI, the JSON API and the qBittorrent hooks each have their own credential, so a leaked one only opens what it's for.

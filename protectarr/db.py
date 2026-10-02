@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS events (
     action TEXT,
     findings TEXT
 );
+CREATE INDEX IF NOT EXISTS events_ts ON events(ts);
 CREATE TABLE IF NOT EXISTS blocklist (
     hash TEXT PRIMARY KEY,
     name TEXT,
@@ -120,9 +121,21 @@ class Store:
     def set_setting(self, key: str, value) -> None:
         self._exec("INSERT OR REPLACE INTO settings VALUES(?,?)", (key, json.dumps(value)))
 
-    def events(self, limit: int = 100) -> list[dict]:
-        rows = self._exec("SELECT * FROM events ORDER BY id DESC LIMIT ?", (limit,))
+    def events(self, limit: int = 100, before: int | None = None) -> list[dict]:
+        """Newest first; before: only events older than that event id (for paging back)."""
+        if before is None:
+            rows = self._exec("SELECT * FROM events ORDER BY id DESC LIMIT ?", (limit,))
+        else:
+            rows = self._exec("SELECT * FROM events WHERE id < ? ORDER BY id DESC LIMIT ?", (before, limit))
         return [{**dict(r), "findings": json.loads(r["findings"] or "[]")} for r in rows]
+
+    def prune_events(self, older_than: float) -> int:
+        """Delete clean results logged before older_than. Blocked, held and denied ones are kept: they're the
+        record of what was caught, and the Indexers page counts them."""
+        with self.lock:
+            n = self.conn.execute("DELETE FROM events WHERE level = 'clean' AND ts < ?", (older_than,)).rowcount
+            self.conn.commit()
+        return n
 
     def block_hash(self, h: str, name: str, reason: str) -> None:
         self._exec("INSERT OR REPLACE INTO blocklist VALUES(?,?,?,?)", (h.lower(), name, reason, time.time()))

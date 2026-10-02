@@ -9,6 +9,7 @@
   <div class="card"><div class="muted">ClamAV</div><div class="n {% if clam_ok %}clean{% elif clam_ok is none %}muted{% else %}malicious{% endif %}">
     {% if clam_ok %}online{% elif clam_ok is none %}not set up{% else %}offline{% endif %}</div></div>
 </div>
+{% if paged %}<p class="muted"><a href="/">← Newest</a></p>{% endif %}
 <div class="wrap"><table class="stack">
   <tr><th>When</th><th>Release</th><th>Checked</th><th>Verdict</th><th>Result</th></tr>
   {% for e in events %}
@@ -25,7 +26,9 @@
     <td>{{ "passed" if e.action == "allow" else ("tagged and notified" if e.action == "alert" else e.action) }}</td>
   </tr>
   {% else %}
-  <tr><td colspan="5" class="muted">Nothing checked yet. New torrents show up here as soon as their file list is known.</td></tr>
+  {% if paged %}<tr><td colspan="5" class="muted">No older results.</td></tr>{% else %}
+  <tr><td colspan="5" class="muted">Nothing checked yet. New torrents show up here as soon as their file list is known.</td></tr>{% endif %}
   {% endfor %}
 </table></div>
+<p class="muted">{% if older %}<a href="/?before={{ older }}">Older →</a> · {% endif %}{% if paged %}<a href="/">Newest</a> · {% endif %}{% if history_days %}Clean results are kept for {{ history_days }} days; blocked and held ones are always kept.{% else %}All results are kept.{% endif %} <a href="/settings#history">Change</a></p>
 {% endblock %}

@@ -80,6 +80,19 @@
 </fieldset>
 </form>
 
+<h2 id="history">Activity history</h2>
+{% if history_saved %}<div class="flash ok">Saved.</div>{% endif %}
+{% if history_error %}<div class="flash bad">Not saved: {{ history_error }}</div>{% endif %}
+<form method="post" action="/settings/history" autocomplete="off">
+<fieldset><legend>Keep results</legend>
+  <div class="row">
+    <label>Days to keep clean results<input name="history_days" value="{{ history_days }}" size="6" inputmode="numeric"></label>
+  </div>
+  <p class="muted">Clean results older than this are removed from the Activity page (checked every 6 hours, and when you save). Blocked, held and denied results are always kept, so the Indexers page keeps counting them. 0 keeps everything.</p>
+  <p style="margin-bottom:0"><button class="primary" type="submit">Save</button></p>
+</fieldset>
+</form>
+
 <h2>Watched qBittorrent categories</h2>
 <div class="wrap"><table>
   <tr><th>Category</th><th>Checked as</th><th>From</th><th>Watched</th></tr>

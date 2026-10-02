@@ -209,6 +209,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `PUBLIC_URL` | empty | How you open the UI, if that's through a reverse proxy |
 | `POLL_SECONDS` | `5` | How often qBittorrent is checked |
 | `EARLY_CHECKS` | `true` | Check files while they download (real type from the first piece, full scan as each file finishes) |
+| `HISTORY_DAYS` | `90` | Days to keep clean results on the Activity page; `0` keeps everything. Blocked, held and denied results are always kept. Also editable under Settings > Activity history, which takes precedence once saved |
 | `QUARANTINE_DIR` / `DATA_DIR` | `/quarantine` / `/config` | |
 | `PORT` | `9797` | Port the web UI listens on inside the container |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING` or `ERROR` |

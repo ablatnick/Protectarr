@@ -56,7 +56,7 @@ def test_allowed_file_types_setting(env):  # noqa: F811
     assert r.status_code == 303 and "rules_saved=1" in r.headers["location"]
     assert guard.cfg.rules.allowed_extensions == [".iso", ".mka", ".thing"]
     assert guard.scanner.allowed_extensions == {".iso", ".mka", ".thing"}
-    assert guard.store.get_setting("rules") == {"allowed_extensions": [".iso", ".mka", ".thing"]}
+    assert guard.store.get_setting("rules")["allowed_extensions"] == [".iso", ".mka", ".thing"]
     page = client.get("/settings").text
     assert ".iso, .mka, .thing" in page and "Program files are allowed" not in page
 
@@ -85,8 +85,12 @@ def test_allowed_file_types_api(env):  # noqa: F811
     guard, _, _, _ = env
     guard.cfg.api_key = "tok"
     client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers={"Authorization": "Bearer tok"})
-    assert client.get("/api/rules").json() == {"allowed_extensions": []}
-    assert client.post("/api/rules", json={"allowed_extensions": ["MKA"]}).json() == {"allowed_extensions": [".mka"]}
+    assert client.get("/api/rules").json() == {"allowed_extensions": [], "history_days": 90}
+    assert client.post("/api/rules", json={"allowed_extensions": ["MKA"]}).json()["allowed_extensions"] == [".mka"]
+    assert client.post("/api/rules", json={"history_days": 30}).json() == {"allowed_extensions": [".mka"],
+                                                                         "history_days": 30}
+    assert client.post("/api/rules", json={"history_days": -1}).status_code == 400
+    assert client.post("/api/rules", json={"history_days": "7"}).status_code == 400
     assert client.post("/api/rules", json={"allowed_extensions": "mka"}).status_code == 400
     assert client.post("/api/rules", json=["x"]).status_code == 400
 
@@ -98,3 +102,59 @@ def test_allowed_file_types_from_config_and_env():
     import pytest
     with pytest.raises(ValueError):
         from_dict({"rules": {"allowed_extensions": [".iso"], "extra_blocked_extensions": ["iso"]}})
+
+
+def test_activity_paging(env):  # noqa: F811
+    guard, _, _, _ = env
+    for i in range(250):
+        guard.store.log(f"h{i}", f"Release.{i:03d}", "metadata", "clean", "clean", "allow", [])
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
+    first = client.get("/").text
+    assert "Release.249" in first and "Release.150" in first and "Release.149" not in first
+    older = first.split('href="/?before=')[1].split('"')[0]
+    second = client.get(f"/?before={older}").text
+    assert "Release.149" in second and "Release.050" in second and "Release.249" not in second and "Newest" in second
+    third = client.get("/?before=" + second.split('href="/?before=')[1].split('"')[0]).text
+    assert "Release.000" in third and "Release.049" in third and "/?before=" not in third  # last page
+    assert "No older results" in client.get("/?before=1").text
+    api = client.get("/api/events?limit=2").json()
+    assert [e["name"] for e in api] == ["Release.249", "Release.248"]
+    assert [e["name"] for e in client.get(f"/api/events?limit=2&before={api[-1]['id']}").json()] == \
+        ["Release.247", "Release.246"]
+
+
+def test_history_cleanup(env):  # noqa: F811
+    guard, _, _, _ = env
+    old = 1_000_000.0
+    for name, level, action in (("Old.Clean", "clean", "allow"), ("Old.Blocked", "malicious", "blocked: removed"),
+                                ("Old.Held", "suspicious", "held for your decision")):
+        guard.store.log("x", name, "metadata", level, "", action, [], "SomeIndexer")
+        guard.store._exec("UPDATE events SET ts=? WHERE name=?", (old, name))
+    guard.store.log("y", "New.Clean", "metadata", "clean", "", "allow", [])
+    stats = guard.store.indexer_stats()
+    guard.cfg.history_days = 0
+    assert guard.prune_history() == 0  # 0 keeps everything
+    guard.cfg.history_days = 90
+    assert guard.prune_history() == 1
+    assert {e["name"] for e in guard.store.events()} == {"Old.Blocked", "Old.Held", "New.Clean"}
+    assert guard.store.indexer_stats() == stats
+
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
+    assert "kept for 90 days" in client.get("/").text
+    r = client.post("/settings/history", data={"history_days": "0"}, follow_redirects=False)
+    assert "history_saved=1" in r.headers["location"] and guard.cfg.history_days == 0
+    assert "All results are kept" in client.get("/").text
+    for bad in ("-3", "soon", ""):
+        r = client.post("/settings/history", data={"history_days": bad}, follow_redirects=False)
+        assert "history_error=" in r.headers["location"] and guard.cfg.history_days == 0
+    assert guard.store.get_setting("rules")["history_days"] == 0
+
+
+def test_history_days_from_config_and_env():
+    from protectarr.config import from_env
+    assert from_dict({}).history_days == 90
+    assert from_dict({"history_days": 7}).history_days == 7
+    assert from_env({"HISTORY_DAYS": "0"}).history_days == 0
+    import pytest
+    with pytest.raises(ValueError):
+        from_dict({"history_days": -1})

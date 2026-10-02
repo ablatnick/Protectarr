@@ -112,6 +112,9 @@ class Config:
     # scan of each file as soon as it finishes. Most bad releases are then caught before the torrent completes,
     # which leaves Sonarr/Radarr almost no window to import them first.
     early_checks: bool = True
+    # Days to keep clean results on the Activity page; 0 keeps them forever. Blocked, held and denied
+    # results are always kept.
+    history_days: int = 90
     quarantine_dir: str = "/quarantine"
     data_dir: str = "/config"
     poll_seconds: float = 5.0
@@ -170,7 +173,7 @@ def from_dict(raw: dict) -> Config:
         path_mappings=[PathMapping(**m) for m in raw.get("path_mappings", [])],
     )
     for key in ("quarantine_dir", "data_dir", "poll_seconds", "port", "api_key", "public_url",
-                "early_checks", "reset_login", "username", "password"):
+                "early_checks", "reset_login", "username", "password", "history_days"):
         if key in raw:
             setattr(cfg, key, raw[key])
     if "actions" in raw:
@@ -195,6 +198,8 @@ def _validate(cfg: Config) -> None:
         if a.name.lower() in names:
             raise ValueError(f"two apps are called '{a.name}'; give each one its own name (e.g. 'Radarr 4K')")
         names.add(a.name.lower())
+    if not isinstance(cfg.history_days, int) or isinstance(cfg.history_days, bool) or cfg.history_days < 0:
+        raise ValueError("history days must be a whole number, 0 or more (0 keeps everything)")
     if not 0 < cfg.clamav.port < 65536:
         raise ValueError(f"ClamAV port {cfg.clamav.port} is not a valid port")
     if cfg.clamav.stream_max_mb < 1:
@@ -303,6 +308,7 @@ def from_env(env: dict[str, str] | None = None) -> Config:
     cfg.data_dir = g("DATA_DIR", cfg.data_dir)
     cfg.poll_seconds = float(g("POLL_SECONDS", str(cfg.poll_seconds)))
     cfg.port = int(g("PORT", str(cfg.port)))
+    cfg.history_days = int(g("HISTORY_DAYS", str(cfg.history_days)))
     cfg.public_url = g("PUBLIC_URL")
     cfg.api_key = g("PROTECTARR_API_KEY")
     cfg.username = g("PROTECTARR_USERNAME")
@@ -379,7 +385,7 @@ def _apply_connections(cfg: Config, data: dict) -> Config:
 # ----- rules edited in the web UI -------------------------------------------------------------------------
 
 def rules_of(cfg: Config) -> dict:
-    return {"allowed_extensions": list(cfg.rules.allowed_extensions)}
+    return {"allowed_extensions": list(cfg.rules.allowed_extensions), "history_days": cfg.history_days}
 
 
 def apply_rules(cfg: Config, data: dict) -> Config:
@@ -390,6 +396,8 @@ def apply_rules(cfg: Config, data: dict) -> Config:
         raise ValueError("malformed rules: 'allowed_extensions' must be a list")
     if "allowed_extensions" in data:
         cfg.rules.allowed_extensions = normalize_extensions(data["allowed_extensions"])
+    if "history_days" in data:
+        cfg.history_days = data["history_days"]
     _validate(cfg)
     return cfg
 
