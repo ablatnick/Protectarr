@@ -87,6 +87,10 @@ class RulesConfig:
     # Scene-style RAR releases. Sonarr/Radarr can't import them without an unpacker.
     allow_archives: bool = False
     extra_blocked_extensions: list[str] = field(default_factory=list)
+    # File types you accept in releases. Their names no longer count against a download, but their contents are
+    # still checked: a file that isn't really what its extension says, a disguised name or a ClamAV detection
+    # is still caught.
+    allowed_extensions: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -198,6 +202,28 @@ def _validate(cfg: Config) -> None:
     bad = {k: v for k, v in cfg.rules.category_profiles.items() if v not in PROFILES}
     if bad:
         raise ValueError(f"unknown category profiles {bad}; use one of {sorted(PROFILES)}")
+    cfg.rules.allowed_extensions = normalize_extensions(cfg.rules.allowed_extensions)
+    both = set(cfg.rules.allowed_extensions) & set(normalize_extensions(cfg.rules.extra_blocked_extensions))
+    if both:
+        raise ValueError(f"{', '.join(sorted(both))} is both allowed and blocked; remove it from one of the lists")
+
+
+_EXTENSION = re.compile(r"^\.[a-z0-9][a-z0-9_+-]{0,15}$")
+
+
+def normalize_extensions(values) -> list[str]:
+    """'MKA', '.mka' and ' mka ' all become '.mka'. Raises ValueError for anything that isn't one extension."""
+    out: list[str] = []
+    for v in values or []:
+        e = str(v).strip().lower()
+        if not e:
+            continue
+        e = e if e.startswith(".") else "." + e
+        if not _EXTENSION.match(e):
+            raise ValueError(f"'{str(v).strip()}' is not a file extension; enter it like .mka (one dot, no spaces)")
+        if e not in out:
+            out.append(e)
+    return out
 
 
 def _list(value: str) -> list[str]:
@@ -265,6 +291,7 @@ def from_env(env: dict[str, str] | None = None) -> Config:
     if "ALLOW_ARCHIVES" in env:
         r.allow_archives = _bool(env["ALLOW_ARCHIVES"])
     r.extra_blocked_extensions = _list(g("EXTRA_BLOCKED_EXTENSIONS"))
+    r.allowed_extensions = _list(g("ALLOWED_EXTENSIONS"))
 
     cfg.path_mappings = [PathMapping(a, b) for a, b in _pairs(g("PATH_MAPPINGS"), ":")]
     for level in ("malicious", "suspicious"):
@@ -345,6 +372,24 @@ def _apply_connections(cfg: Config, data: dict) -> Config:
     for k in ("port", "stream_max_mb"):
         if k in c:
             setattr(cfg.clamav, k, int(c[k]))
+    _validate(cfg)
+    return cfg
+
+
+# ----- rules edited in the web UI -------------------------------------------------------------------------
+
+def rules_of(cfg: Config) -> dict:
+    return {"allowed_extensions": list(cfg.rules.allowed_extensions)}
+
+
+def apply_rules(cfg: Config, data: dict) -> Config:
+    """Apply rules saved on the Settings page to cfg (in place). Malformed data raises ValueError."""
+    if not data:
+        return cfg
+    if not isinstance(data, dict) or not isinstance(data.get("allowed_extensions", []), list):
+        raise ValueError("malformed rules: 'allowed_extensions' must be a list")
+    if "allowed_extensions" in data:
+        cfg.rules.allowed_extensions = normalize_extensions(data["allowed_extensions"])
     _validate(cfg)
     return cfg
 

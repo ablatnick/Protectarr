@@ -2,6 +2,8 @@
 
 ## 0.4.0
 
+- **Allowed file types:** Settings > Allowed file types (or `ALLOWED_EXTENSIONS` / `rules.allowed_extensions`, or `GET`/`POST /api/rules`) lists extensions that shouldn't be flagged, for when Protectarr holds or blocks releases for a file type you're fine with. What's inside those files is still checked: a file that isn't really its extension's type, `Movie.mkv.exe`-style names, hidden right-to-left characters, lure names, password-protected archives and ClamAV detections are still caught. Allowing a program type shows a warning.
+
 - **Logins and tokens, kept apart:** the web UI, the JSON API and the qBittorrent hooks each have their own credential, so a leaked one only opens what it's for.
   - **Web UI login:** on first start a random password for `admin` is generated and printed once in the log (or set `PROTECTARR_USERNAME`/`PROTECTARR_PASSWORD`). Change it under Settings > Login; it's stored as a salted PBKDF2 hash. There is no default password, and the UI is never open without a login.
   - **API token** (`PROTECTARR_API_KEY`, or generated): opens `/api/` only, sent as a header (`Authorization: Bearer` or `X-Api-Key`), never in a URL. It no longer opens the web pages.

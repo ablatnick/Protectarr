@@ -8,6 +8,7 @@ import copy
 import hmac
 import logging
 import os
+import re
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -20,12 +21,13 @@ from fastapi.templating import Jinja2Templates
 from . import __version__
 from .arr import ArrClient
 from .clamav import ClamdClient
-from .config import ARR_KINDS, Config, apply_connections, connections_of, merge_connections
+from .config import ARR_KINDS, Config, apply_connections, apply_rules, connections_of, merge_connections, rules_of
 from .db import Store
 from .guard import Guard
 from .login import Logins
 from .qbit import QbitClient
 from .quarantine import Quarantine
+from .rules import EXECUTABLE_EXT
 from .scanner import Scanner
 from .status import run_checks
 
@@ -46,13 +48,15 @@ def build_guard(cfg: Config) -> Guard:
     store = Store(os.path.join(cfg.data_dir, "protectarr.db"))
     # Connections saved on the Settings page take precedence over the file and environment.
     apply_connections(cfg, store.get_setting("connections"))
+    apply_rules(cfg, store.get_setting("rules"))
     clamd = (ClamdClient(cfg.clamav.host, cfg.clamav.port, cfg.clamav.timeout)
              if cfg.clamav.enabled and cfg.clamav.host else None)
     return Guard(
         cfg, store,
         QbitClient(cfg.qbittorrent.url, cfg.qbittorrent.username, cfg.qbittorrent.password),
         [ArrClient(a) for a in cfg.arr],
-        Scanner(clamd, cfg.clamav.stream_max_mb * 1024 * 1024, cfg.rules.allow_archives, cfg.clamav.scan_media),
+        Scanner(clamd, cfg.clamav.stream_max_mb * 1024 * 1024, cfg.rules.allow_archives, cfg.clamav.scan_media,
+                cfg.rules.allowed_extensions),
         Quarantine(cfg.quarantine_dir, os.path.join(cfg.data_dir, "quarantine-records")),
         background_scans=True,
     )
@@ -275,12 +279,14 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
 
     @app.get("/settings", response_class=HTMLResponse)
     async def settings_page(request: Request, saved: int = 0, error: str = "", login_error: str = "",
-                            login_saved: int = 0, token_saved: int = 0):
+                            login_saved: int = 0, token_saved: int = 0, rules_saved: int = 0, rules_error: str = ""):
         status = await run_checks(guard)
         login = logins.get()
         return page(request, "settings.html", status=status, by_name={x["name"]: x for x in status["services"]},
                     conn=connections_of(guard.cfg), kinds=list(ARR_KINDS), hook_base=_hook_base(request),
-                    saved=saved, error=error, login_error=login_error, login_saved=login_saved, token_saved=token_saved, login_user=(login or {}).get("username", ""),
+                    saved=saved, error=error, rules_saved=rules_saved, rules_error=rules_error,
+                    allowed_extensions=guard.cfg.rules.allowed_extensions, allowed_programs=_programs(guard.cfg),
+                    login_error=login_error, login_saved=login_saved, token_saved=token_saved, login_user=(login or {}).get("username", ""),
                     login_generated=logins.generated, env_key=bool(cfg.api_key), hook_key=logins.token("hook_key"),
                     # Generated tokens are shown so they can be copied; PROTECTARR_API_KEY never is.
                     api_key="" if cfg.api_key else logins.token("api_key"))
@@ -318,6 +324,41 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         except ValueError as exc:
             return RedirectResponse(f"/settings?error={_quote(str(exc))}", status_code=303)
         return RedirectResponse("/settings?saved=1", status_code=303)
+
+    @app.post("/settings/rules")
+    async def settings_rules(request: Request):
+        form = {k: v[-1] for k, v in parse_qs((await request.body()).decode(), keep_blank_values=True).items()}
+        try:
+            _save_rules({"allowed_extensions": [e for e in re.split(r"[,\s]+", form.get("allowed_extensions", ""))]})
+        except ValueError as exc:
+            return RedirectResponse(f"/settings?rules_error={_quote(str(exc))}#rules", status_code=303)
+        return RedirectResponse("/settings?rules_saved=1#rules", status_code=303)
+
+    @app.get("/api/rules")
+    async def rules_api():
+        return rules_of(guard.cfg)
+
+    @app.post("/api/rules")
+    async def rules_api_save(request: Request):
+        try:
+            _save_rules(await request.json())
+        except ValueError as exc:  # also malformed JSON
+            raise HTTPException(400, str(exc))
+        return rules_of(guard.cfg)
+
+    def _save_rules(submitted: dict) -> None:
+        if not isinstance(submitted, dict):
+            raise ValueError("expected an object")
+        merged = {**rules_of(guard.cfg), **submitted}
+        apply_rules(copy.deepcopy(guard.cfg), merged)  # validate before touching the live settings
+        apply_rules(guard.cfg, merged)
+        guard.scanner.allowed_extensions = set(guard.cfg.rules.allowed_extensions)
+        guard.store.set_setting("rules", rules_of(guard.cfg))
+        allowed = ", ".join(guard.cfg.rules.allowed_extensions) or "none"
+        log.info("allowed file types changed on the Settings page: %s", allowed)
+        if _programs(guard.cfg):
+            log.warning("program file types are allowed (%s): only ClamAV now checks them",
+                        ", ".join(_programs(guard.cfg)))
 
     @app.get("/connections")
     async def connections_redirect():
@@ -373,6 +414,11 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         return guard.store.quarantine_items()
 
     return app
+
+
+def _programs(cfg: Config) -> list[str]:
+    """Allowed extensions that are program types, which deserve a warning."""
+    return [e for e in cfg.rules.allowed_extensions if e in EXECUTABLE_EXT]
 
 
 def _url(value: str) -> str:

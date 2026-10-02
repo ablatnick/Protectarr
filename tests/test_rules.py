@@ -61,3 +61,26 @@ def test_scene_rar_allowed_when_enabled():
 def test_extra_blocked_extension():
     v = check_metadata([F("M/M.mkv", 900 * MB), F("M/thing.xyz", 1)], MIN, extra_blocked=["xyz"])
     assert v.level == Level.MALICIOUS
+
+
+def test_allowed_extension_is_not_flagged():
+    files = [F("M/M.mkv", 900 * MB), F("M/extras.iso", 4000 * MB), F("M/M.thing", 10)]
+    assert {"disk_image", "unknown_type"} <= codes(check_metadata(files, MIN))
+    assert check_metadata(files, MIN, allowed=[".iso", "THING"]).level == Level.CLEAN
+
+
+def test_allowed_extension_keeps_name_tricks():
+    v = check_metadata([F("M/M.mkv", 900 * MB), F("M/M.mkv.exe", 1), F("M/codec.iso", 1),
+                        F("M/M‮vkm.iso", 1)], MIN, allowed=[".exe", ".iso"])
+    assert {"double_extension", "lure_name", "rtlo"} <= codes(v) and v.level == Level.MALICIOUS
+
+
+def test_allowed_program_and_legacy_video():
+    assert check_metadata([F("M/M.mkv", 900 * MB), F("M/tool.exe", 1)], MIN, allowed=[".exe"]).level == Level.CLEAN
+    # An allowed WMV still counts as the release's video, so the size check applies to it.
+    assert check_metadata([F("M/M.wmv", 900 * MB)], MIN, allowed=[".wmv"]).level == Level.CLEAN
+    assert "too_small" in codes(check_metadata([F("M/M.wmv", 2 * MB)], MIN, allowed=[".wmv"]))
+
+
+def test_allowing_a_main_type_still_counts_it():
+    assert check_metadata([F("M/M.mkv", 900 * MB)], MIN, allowed=[".mkv"]).level == Level.CLEAN

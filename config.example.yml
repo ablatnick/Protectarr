@@ -47,6 +47,7 @@ rules:
   category_profiles: {}
   allow_archives: false          # set true if you run Unpackerr for scene RAR releases
   extra_blocked_extensions: []
+  allowed_extensions: []         # file types never flagged for their type, e.g. [.iso]; contents are still checked
 
 # What to do per verdict:
 #   block: quarantine files, remove the download, blocklist it in the *arr app

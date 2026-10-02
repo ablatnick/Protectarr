@@ -201,6 +201,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `CATEGORY_PROFILES` | empty | What a category holds when no *arr app says so, e.g. `audiobooks=book,concerts=movie` (`tv`, `movie`, `music`, `book`) |
 | `ALLOW_ARCHIVES` | `false` | Set `true` if you use Unpackerr for scene RAR releases. Archives are still checked for passwords and programs |
 | `EXTRA_BLOCKED_EXTENSIONS` | empty | e.g. `.iso,.torrent` |
+| `ALLOWED_EXTENSIONS` | empty | File types not to flag, e.g. `.iso,.mka`. Their contents are still checked (real type, disguised names, lures, password archives, ClamAV). Also editable under Settings > Allowed file types, which takes precedence once saved |
 | `PATH_MAPPINGS` | empty | `qbit-path:protectarr-path`, comma-separated |
 | `PROTECTARR_USERNAME` / `PROTECTARR_PASSWORD` | `admin` / generated | The first web UI login, used only while none is saved. Without a password, one is generated and printed once in the log |
 | `PROTECTARR_API_KEY` | generated | API token for scripts and the JSON API (as a header). Never opens the web pages |

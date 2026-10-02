@@ -27,13 +27,16 @@ class ClamavUnavailable(RuntimeError):
 
 class Scanner:
     def __init__(self, clamd: ClamdClient | None, stream_max_bytes: int, allow_archives: bool = False,
-                 scan_media: bool = False):
+                 scan_media: bool = False, allowed_extensions: list[str] | None = None):
         self.clamd = clamd
         self.stream_max_bytes = stream_max_bytes
         self.allow_archives = allow_archives
         # Also send files that are verified real video/audio to ClamAV. Off: they're rarely the carrier, and an
         # album or season pack would otherwise keep ClamAV busy for minutes.
         self.scan_media = scan_media
+        # Extensions the user accepts. A file of that type isn't a finding for its type alone, but one whose
+        # contents don't match its name (a program called .srt) still is, and it still goes to ClamAV.
+        self.allowed_extensions = set(allowed_extensions or [])
 
     async def scan(self, files: list[tuple[str, str]], profile: str = "tv", clamav_required: bool = False) -> Verdict:
         """files: (display name relative to the torrent, local path) pairs of downloaded files.
@@ -74,8 +77,11 @@ class Scanner:
         v = Verdict()
         base = PurePosixPath(name).name
 
+        allowed = ext in self.allowed_extensions
         if kind in filetype.EXECUTABLE_KINDS:
-            if ext in EXECUTABLE_EXT:
+            if ext in EXECUTABLE_EXT and allowed:
+                pass  # an allowed program type that really is a program
+            elif ext in EXECUTABLE_EXT:
                 v.add(Level.MALICIOUS, "executable", f"'{base}' is a program ({kind})", name)
             else:
                 v.add(Level.MALICIOUS, "hidden_executable", f"'{base}' is really a program ({kind}) disguised as {ext or 'a file'}", name)
@@ -86,7 +92,7 @@ class Scanner:
                 v.add(Level.SUSPICIOUS, "type_mismatch", f"'{base}' does not look like a real {ext} file (found {kind})", name)
         elif kind in LURE_KINDS and ext not in (".html", ".htm", ".url", ".pdf", ".epub"):
             v.add(Level.SUSPICIOUS, "disguised_lure", f"'{base}' is really a {LURE_KINDS[kind]}", name)
-        elif kind == "iso":
+        elif kind == "iso" and not allowed:
             v.add(Level.SUSPICIOUS, "disk_image", f"'{base}' is a disk image", name)
         return v
 
@@ -97,18 +103,20 @@ class Scanner:
         info = archives.inspect(path, kind)
         if info.encrypted:
             v.add(Level.MALICIOUS, "password_archive", f"'{base}' is password-protected, a classic scam in media releases", name)
-        blocked = EXECUTABLE_EXT - CONTAINER_ALLOWED if container else EXECUTABLE_EXT
+        blocked = (EXECUTABLE_EXT - CONTAINER_ALLOWED if container else EXECUTABLE_EXT) - self.allowed_extensions
         bad = [e for e in info.entries if extension(e) in blocked]
         if bad:
             v.add(Level.MALICIOUS, "archive_executable", f"'{base}' contains program files: {', '.join(bad[:3])}", name)
         # Programs are hidden one level further down: in an archive or disk image inside the archive.
-        nested = [e for e in info.entries if (x := extension(e)) in ARCHIVE_EXT | DISK_IMAGE_EXT or is_split_rar(x)]
+        nested = [e for e in info.entries if ((x := extension(e)) in ARCHIVE_EXT | DISK_IMAGE_EXT or is_split_rar(x))
+                  and x not in self.allowed_extensions]
         if nested:
             v.add(Level.SUSPICIOUS, "archive_nested", f"'{base}' contains another archive or disk image: "
                                                       f"{', '.join(nested[:3])}", name)
         if info.error:
             v.add(Level.SUSPICIOUS, "archive_unreadable", f"could not read '{base}': {info.error}", name)
-        if not container and not self.allow_archives and not v.findings:
+        allowed = extension(name) in self.allowed_extensions
+        if not container and not self.allow_archives and not allowed and not v.findings:
             v.add(Level.SUSPICIOUS, "archive", f"archive '{base}' in a media release", name)
         return v
 

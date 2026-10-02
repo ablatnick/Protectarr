@@ -66,6 +66,20 @@
 <p><button class="primary" type="submit">Save and test</button></p>
 </form>
 
+<h2 id="rules">Allowed file types</h2>
+{% if rules_saved %}<div class="flash ok">Saved. New downloads are checked with these file types allowed.</div>{% endif %}
+{% if rules_error %}<div class="flash bad">Not saved: {{ rules_error }}</div>{% endif %}
+{% if allowed_programs %}<div class="flash bad">Program files are allowed ({{ allowed_programs|join(", ") }}). Real programs of these types are no longer flagged: only ClamAV checks what they contain, and ones larger than its size limit aren't scanned at all. Remove them unless you're sure.</div>{% endif %}
+<form method="post" action="/settings/rules" autocomplete="off">
+<fieldset><legend>Don't flag these file types</legend>
+  <div class="row">
+    <label>Extensions<input class="wide" name="allowed_extensions" value="{{ allowed_extensions|join(', ') }}" placeholder="e.g. .mka, .iso"></label>
+  </div>
+  <p class="muted">If Protectarr holds or blocks releases just for containing a file type you're happy with, list it here, separated by commas. Files of that type are no longer flagged for their name or type, and archives may contain them. Protectarr still checks what's inside them: a file that isn't really what its extension says (a program named <code>.srt</code>), a disguised name like <code>Movie.mkv.exe</code>, a password or codec lure, a password-protected archive and anything ClamAV detects are still caught. Applies to new checks; releases already held stay on the Review page.</p>
+  <p style="margin-bottom:0"><button class="primary" type="submit">Save file types</button></p>
+</fieldset>
+</form>
+
 <h2>Watched qBittorrent categories</h2>
 <div class="wrap"><table>
   <tr><th>Category</th><th>Checked as</th><th>From</th><th>Watched</th></tr>

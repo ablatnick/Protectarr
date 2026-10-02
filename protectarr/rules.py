@@ -87,11 +87,26 @@ MAIN_EXT = {"tv": VIDEO_EXT, "movie": VIDEO_EXT, "music": AUDIO_EXT, "book": BOO
 MISSING = {"tv": "no video file", "movie": "no video file", "music": "no audio file", "book": "no book or audiobook file"}
 
 
+def _dotted(exts: list[str] | None) -> set[str]:
+    return {e.lower() if e.startswith(".") else "." + e.lower() for e in (exts or [])}
+
+
+def _fake_media(lower_base: str) -> str | None:
+    """What 'movie.mkv.exe' pretends to be ('a video'), or None when the name has no media extension before the last."""
+    suffixes = [s.lower() for s in PurePosixPath(lower_base.rstrip(". ")).suffixes]
+    return next((_MEDIA_WORD[s] for s in suffixes[:-1] if s in _MEDIA_WORD), None)
+
+
 def check_metadata(files: list[TorrentFile], min_video_bytes: int, allow_archives: bool = False,
-                   extra_blocked: list[str] | None = None, profile: str = "tv") -> Verdict:
-    """Check a torrent's file names and sizes. profile: tv | movie | music | book."""
+                   extra_blocked: list[str] | None = None, profile: str = "tv",
+                   allowed: list[str] | None = None) -> Verdict:
+    """Check a torrent's file names and sizes. profile: tv | movie | music | book.
+
+    allowed: extensions the user accepts. Their type alone is no longer a finding, but a disguised name
+    (Movie.mkv.exe), a hidden right-to-left character or a lure name still is."""
     v = Verdict()
-    blocked = EXECUTABLE_EXT | {e.lower() if e.startswith(".") else "." + e.lower() for e in (extra_blocked or [])}
+    allowed_ext = _dotted(allowed)
+    blocked = (EXECUTABLE_EXT | _dotted(extra_blocked)) - allowed_ext
     video = profile in ("tv", "movie")
     main_ext = MAIN_EXT.get(profile, VIDEO_EXT)
     sidecar_ext = (SIDECAR_EXT | (MUSIC_SIDECAR_EXT if profile == "music" else set())
@@ -111,10 +126,18 @@ def check_metadata(files: list[TorrentFile], min_video_bytes: int, allow_archive
         disc = video and in_disc_structure(name)
         if disc and _disc_exception(name, ext):
             continue  # still sent to ClamAV after the download
+        if ext in allowed_ext and ext not in main_ext:
+            fake = _fake_media(lower) if ext in EXECUTABLE_EXT else None
+            if fake:
+                v.add(Level.MALICIOUS, "double_extension", f"'{base}' pretends to be {fake} but is a {ext} program", name)
+            elif any(w in lower for w in LURE_WORDS):
+                v.add(Level.SUSPICIOUS, "lure_name", f"'{base}' looks like a password or codec lure", name)
+            elif video and ext in LEGACY_VIDEO_EXT and not is_sample(name):
+                main_videos.append(f)
+            continue
         if ext in blocked:
-            suffixes = [s.lower() for s in PurePosixPath(lower.rstrip(". ")).suffixes]
-            fake = next((_MEDIA_WORD[s] for s in suffixes[:-1] if s in _MEDIA_WORD), None)
-            if len(suffixes) > 1 and fake:
+            fake = _fake_media(lower)
+            if fake:
                 v.add(Level.MALICIOUS, "double_extension", f"'{base}' pretends to be {fake} but is a {ext} program", name)
             else:
                 v.add(Level.MALICIOUS, "executable", f"program file '{base}' in a media release", name)

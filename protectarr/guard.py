@@ -297,7 +297,7 @@ class Guard:
         verdict = check_metadata(
             [TorrentFile(f["name"], f["size"]) for f in files],
             self.cfg.min_video_bytes(cat, profile), self.cfg.rules.allow_archives,
-            self.cfg.rules.extra_blocked_extensions, profile)
+            self.cfg.rules.extra_blocked_extensions, profile, self.cfg.rules.allowed_extensions)
         action = self._action(verdict)
         if action == "block":
             await self._block(t, "metadata", verdict, verdict.summary(), quarantine_files=False)
