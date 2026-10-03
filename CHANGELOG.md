@@ -2,7 +2,7 @@
 
 ## 0.4.0
 
-- **Dashboard details:** click the Blocked recently or Watched categories card to see which releases were blocked (with when and why) and which categories are watched (with their profile), not just how many.
+- **Dashboard details:** click the Blocked recently or Watched categories card to open a panel under the cards listing which releases were blocked (with when and why) or which categories are watched (with their profile), not just how many.
 
 - **Activity history:** the Activity page pages back through older results (100 per page, also `GET /api/events?before=<id>`). Clean results older than 90 days are removed every 6 hours; change it under Settings > Activity history (or `HISTORY_DAYS` / `history_days`, `0` keeps everything). Blocked, held and denied results are always kept, so the Indexers page counts don't change.
 

@@ -4,16 +4,33 @@
 <div class="cards">
   <div class="card"><div class="muted">Waiting for you</div><div class="n {% if pending %}suspicious{% endif %}"><a href="/review" style="color:inherit;text-decoration:none">{{ pending }}</a></div></div>
   <div class="card"><div class="muted">In quarantine</div><div class="n">{{ held }}</div></div>
-  <div class="card">{% if blocked %}<details><summary><span class="muted">Blocked recently</span><div class="n">{{ blocked | length }}</div></summary>
-    <ul class="list">{% for e in blocked %}<li><span class="name">{{ e.name }}</span> <span class="muted">· {{ e.ts | ago }}{% if e.summary %} · {{ e.summary }}{% endif %}</span></li>{% endfor %}</ul></details>
-    {% else %}<div class="muted">Blocked recently</div><div class="n">0</div>{% endif %}</div>
-  <div class="card">{% if watched %}<details><summary><span class="muted">Watched categories</span><div class="n">{{ watched | length }}</div></summary>
-    <ul class="list">{% for c in watched %}<li><code>{{ c.category }}</code> <span class="muted">· {{ c.profile }}</span></li>{% endfor %}</ul>
-    <a href="/settings" class="muted">Change in Settings</a></details>
-    {% else %}<div class="muted">Watched categories</div><div class="n suspicious"><a href="/settings" style="color:inherit;text-decoration:none">none</a></div>{% endif %}</div>
+  {% if blocked %}<button type="button" class="card open" aria-expanded="false" aria-controls="p-blocked"><div class="muted">Blocked recently</div><div class="n">{{ blocked | length }}</div></button>
+  {% else %}<div class="card"><div class="muted">Blocked recently</div><div class="n">0</div></div>{% endif %}
+  {% if watched %}<button type="button" class="card open" aria-expanded="false" aria-controls="p-watched"><div class="muted">Watched categories</div><div class="n">{{ watched | length }}</div></button>
+  {% else %}<div class="card"><div class="muted">Watched categories</div><div class="n suspicious"><a href="/settings" style="color:inherit;text-decoration:none">none</a></div></div>{% endif %}
   <div class="card"><div class="muted">ClamAV</div><div class="n {% if clam_ok %}clean{% elif clam_ok is none %}muted{% else %}malicious{% endif %}">
     {% if clam_ok %}online{% elif clam_ok is none %}not set up{% else %}offline{% endif %}</div></div>
 </div>
+{% if blocked %}<section class="panel" id="p-blocked" hidden>
+  <div class="panel-head"><b>Blocked recently</b><button type="button" class="x" aria-label="Close">×</button></div>
+  <table class="stack">{% for e in blocked %}<tr><td class="name">{{ e.name }}{% if e.indexer %} <span class="muted">· {{ e.indexer }}</span>{% endif %}</td>
+    <td class="muted when">{{ e.ts | ago }}</td><td class="inl {{ e.level }}">{{ e.summary }}</td></tr>{% endfor %}</table>
+</section>{% endif %}
+{% if watched %}<section class="panel" id="p-watched" hidden>
+  <div class="panel-head"><b>Watched categories</b><span><a href="/settings" class="muted">Change in Settings</a><button type="button" class="x" aria-label="Close">×</button></span></div>
+  <table class="stack">{% for c in watched %}<tr><td><code>{{ c.category }}</code></td><td class="muted">checked as {{ c.profile }}</td><td class="muted">from {{ c.source }}</td></tr>{% endfor %}</table>
+</section>{% endif %}
+<script>
+  // One panel at a time; clicking its card again or × closes it.
+  document.querySelectorAll(".card.open").forEach(card => card.addEventListener("click", () => {
+    const show = card.getAttribute("aria-expanded") !== "true";
+    document.querySelectorAll(".card.open").forEach(c => {
+      c.setAttribute("aria-expanded", "false"); document.getElementById(c.getAttribute("aria-controls")).hidden = true; });
+    if (show) { card.setAttribute("aria-expanded", "true"); document.getElementById(card.getAttribute("aria-controls")).hidden = false; }
+  }));
+  document.querySelectorAll(".panel .x").forEach(x => x.addEventListener("click", () =>
+    document.querySelector(`.card.open[aria-controls="${x.closest(".panel").id}"]`).click()));
+</script>
 {% if paged %}<p class="muted"><a href="/">← Newest</a></p>{% endif %}
 <div class="wrap"><table class="stack">
   <tr><th>When</th><th>Release</th><th>Checked</th><th>Verdict</th><th>Result</th></tr>
