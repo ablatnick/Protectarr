@@ -205,9 +205,9 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         recent = events if before is None else guard.store.events(PAGE_SIZE)
         return page(request, "dashboard.html", events=events[:PAGE_SIZE], older=older, paged=before is not None,
                     history_days=guard.cfg.history_days,
-                    blocked=sum(1 for e in recent[:PAGE_SIZE] if e["action"].startswith("blocked")),
+                    blocked=[e for e in recent[:PAGE_SIZE] if e["action"].startswith("blocked")],
                     pending=len(guard.store.pending_decisions()), held=len(guard.store.quarantine_items()),
-                    clam_ok=clam_ok, watched=sum(1 for c in guard.category_table() if c["watched"]),
+                    clam_ok=clam_ok, watched=[c for c in guard.category_table() if c["watched"]],
                     setup_done=guard.qbit.configured and bool(guard.arrs or guard.cfg.qbittorrent.categories))
 
     @app.get("/review", response_class=HTMLResponse)

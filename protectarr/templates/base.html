@@ -64,6 +64,11 @@
   .cards { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 16px; min-width:160px }
   .card .n { font-size:22px; font-weight:600 }
+  .cards { align-items:flex-start }
+  .card summary { cursor:pointer; list-style:none } .card summary::-webkit-details-marker { display:none }
+  .card summary .muted::after { content:" ▸" } .card details[open] summary .muted::after { content:" ▾" }
+  .card ul.list { margin:6px 0; padding-left:18px; font-size:13px; max-width:360px; max-height:240px; overflow-y:auto }
+  .card ul.list li { word-break:break-word }
   table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden }
   th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top }
   th { color:var(--muted); font-weight:500; font-size:13px }

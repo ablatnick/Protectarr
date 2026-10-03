@@ -18,6 +18,8 @@ def test_pages_and_auth(env):  # noqa: F811
     assert client.get("/", auth=("any", "s3cret")).status_code == 401  # the API token never opens pages
     r = client.get("/", auth=login)
     assert r.status_code == 200 and "Some.Release" in r.text
+    assert "<details><summary><span class=\"muted\">Blocked recently" in r.text
+    assert r.text.count("Some.Release") == 2  # in the blocked list and the activity table
     assert client.get("/quarantine", auth=login).status_code == 200
     assert "Nothing is waiting" in client.get("/review", auth=login).text
     assert client.post("/review/99/allow", auth=login).status_code == 404
