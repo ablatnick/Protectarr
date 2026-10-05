@@ -149,24 +149,24 @@ Protectarr works alongside these. None are required except qBittorrent and at le
 `http://your-server:9797`. Log in with your username and password (see **Logins and tokens** below). Repeated wrong passwords make an address wait a few minutes.
 
 - **Activity:** every check, with the reasons and the indexer. The cards along the top open a panel with what's behind them, such as recent blocks or the watched categories.
-  <img src="docs/screenshots/activity.png" alt="Activity page: status cards and the list of recent checks with their verdicts" />
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/activity-dark.png"><img src="docs/screenshots/activity-light.png" alt="Activity page: status cards and the list of recent checks with their verdicts"></picture>
   <details><summary>The Blocked recently and Watched categories panels</summary>
 
-  <img src="docs/screenshots/activity-blocked.png" alt="Blocked recently panel opened under the cards" />
-  <img src="docs/screenshots/activity-categories.png" alt="Watched categories panel opened under the cards" />
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/activity-blocked-dark.png"><img src="docs/screenshots/activity-blocked-light.png" alt="Blocked recently panel opened under the cards"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/activity-categories-dark.png"><img src="docs/screenshots/activity-categories-light.png" alt="Watched categories panel opened under the cards"></picture>
   </details>
 - **Review:** held downloads waiting for Allow or Deny.
-  <img src="docs/screenshots/review.png" alt="Review page with two held downloads and Allow / Deny buttons" />
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/review-dark.png"><img src="docs/screenshots/review-light.png" alt="Review page with two held downloads and Allow / Deny buttons"></picture>
 - **Quarantine:** blocked files, which you can restore or delete.
-  <img src="docs/screenshots/quarantine.png" alt="Quarantine page listing blocked releases with Restore / Delete buttons" />
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/quarantine-dark.png"><img src="docs/screenshots/quarantine-light.png" alt="Quarantine page listing blocked releases with Restore / Delete buttons"></picture>
 - **Indexers:** which indexers sent bad releases.
-  <img src="docs/screenshots/indexers.png" alt="Indexers page counting bad releases per indexer" />
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/indexers-dark.png"><img src="docs/screenshots/indexers-light.png" alt="Indexers page counting bad releases per indexer"></picture>
 - **Settings:** the address and key of every service, their live status with setup hints, and the categories being watched.
-  <img src="docs/screenshots/settings-connections.png" alt="Settings page: qBittorrent, *arr apps and ClamAV connections" />
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-connections-dark.png"><img src="docs/screenshots/settings-connections-light.png" alt="Settings page: qBittorrent, *arr apps and ClamAV connections"></picture>
   <details><summary>The rest of the Settings page: allowed file types, history, categories, hooks and tokens</summary>
 
-  <img src="docs/screenshots/settings-rules.png" alt="Settings: Prowlarr, allowed file types, activity history and watched categories" />
-  <img src="docs/screenshots/settings-hooks-tokens.png" alt="Settings: torrents you add yourself, instant hooks, tokens and login" />
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-rules-dark.png"><img src="docs/screenshots/settings-rules-light.png" alt="Settings: Prowlarr, allowed file types, activity history and watched categories"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-hooks-tokens-dark.png"><img src="docs/screenshots/settings-hooks-tokens-light.png" alt="Settings: torrents you add yourself, instant hooks, tokens and login"></picture>
   </details>
 
 ### Logins and tokens
