@@ -268,7 +268,7 @@ pytest
 
 ## Support
 
-If Protectarr is useful to you, you can support it on [Venmo (@ablatnick)](https://venmo.com/u/ablatnick).
+If Protectarr is useful to you, you can support it and other projects on [Venmo (@ablatnick)](https://venmo.com/u/ablatnick).
 
 ## License
 
