@@ -266,6 +266,10 @@ pytest
 
 [`docs/design.md`](docs/design.md) explains how it hooks into qBittorrent and the *arr apps, and why.
 
+## Support
+
+If Protectarr is useful to you, you can support it on [Venmo (@ablatnick)](https://venmo.com/u/ablatnick).
+
 ## License
 
 [MIT](LICENSE)
