@@ -148,17 +148,6 @@ Protectarr works alongside these. None are required except qBittorrent and at le
 
 `http://your-server:9797`. Log in with your username and password (see **Logins and tokens** below). Repeated wrong passwords make an address wait a few minutes.
 
-<<<<<<< Updated upstream
-- **Activity:** every check, with the reasons and the indexer.
-
-- **Review:** held downloads waiting for Allow or Deny.
-
-- **Quarantine:** blocked files, which you can restore or delete.
-
-- **Indexers:** which indexers sent bad releases.
-
-- **Settings:** the address and key of every service, their live status with setup hints, and the categories being watched.
-=======
 - **Activity:** every check, with the reasons and the indexer. The cards along the top open a panel with what's behind them, such as recent blocks or the watched categories.
   <img src="docs/screenshots/activity.png" alt="Activity page: status cards and the list of recent checks with their verdicts" />
   <details><summary>The Blocked recently and Watched categories panels</summary>
@@ -179,7 +168,6 @@ Protectarr works alongside these. None are required except qBittorrent and at le
   <img src="docs/screenshots/settings-rules.png" alt="Settings: Prowlarr, allowed file types, activity history and watched categories" />
   <img src="docs/screenshots/settings-hooks-tokens.png" alt="Settings: torrents you add yourself, instant hooks, tokens and login" />
   </details>
->>>>>>> Stashed changes
 
 ### Logins and tokens
 
