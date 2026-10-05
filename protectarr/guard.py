@@ -63,6 +63,8 @@ class Guard:
         self.discovered: dict[str, dict] = store.get_setting("discovered_categories", {}) or {}
         self.arr_errors: dict[str, str] = {}
         self._categories_at = float("-inf")
+        self.uncategorized_since: float | None = None
+        self.set_watch_uncategorized(cfg.qbittorrent.watch_uncategorized)
 
     async def reconnect(self) -> None:
         """Rebuild every service client from self.cfg after the connections were changed in the web UI."""
@@ -116,11 +118,32 @@ class Guard:
         self._categories_at = time.monotonic()
 
     def watched(self, category: str) -> bool:
+        if not category:
+            return self.cfg.qbittorrent.watch_uncategorized
         explicit = self.cfg.qbittorrent.categories
         if explicit:
             return category in explicit
         # Nothing is checked until an *arr app (or an explicit category) says which torrents are media.
         return category in self.discovered
+
+    def set_watch_uncategorized(self, on: bool) -> None:
+        """Turn checking of torrents with no category on or off. Turning it on only covers torrents added from
+        now on, so finished downloads already in qBittorrent aren't suddenly checked and moved to quarantine."""
+        self.cfg.qbittorrent.watch_uncategorized = on
+        since = self.store.get_setting("uncategorized_since") if on else None
+        if on and since is None:
+            since = time.time()
+        if since != self.store.get_setting("uncategorized_since"):
+            self.store.set_setting("uncategorized_since", since)
+        self.uncategorized_since = since
+
+    def _checks(self, t: dict) -> bool:
+        """Whether this torrent is one Protectarr checks (see watched)."""
+        cat = t.get("category", "")
+        if cat or not self.watched(cat):
+            return self.watched(cat)
+        # A few seconds of slack: qBittorrent's added_on is in whole seconds.
+        return t.get("added_on") is None or t["added_on"] >= (self.uncategorized_since or 0) - 5
 
     def profile(self, category: str) -> str:
         if category in self.cfg.rules.category_profiles:
@@ -134,6 +157,8 @@ class Guard:
             source = ("config" if cat in self.cfg.qbittorrent.categories
                       else self.discovered.get(cat, {}).get("source", "config"))
             rows.append({"category": cat, "profile": self.profile(cat), "source": source, "watched": self.watched(cat)})
+        if self.cfg.qbittorrent.watch_uncategorized:
+            rows.append({"category": "", "profile": self.profile(""), "source": "added by you", "watched": True})
         return rows
 
     # ----- polling -----------------------------------------------------------------------------------------
@@ -195,7 +220,7 @@ class Guard:
 
     async def process(self, t: dict) -> None:
         h = t["hash"]
-        if not self.watched(t.get("category", "")):
+        if not self._checks(t):
             row = self.store.torrent(h)
             if row is None:
                 await self._release_other(t)

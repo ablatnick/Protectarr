@@ -168,7 +168,7 @@ async def run_checks(guard: Guard) -> dict:
          "text": "Replace the generated password from the log: set your own login below"},
     ]
     warnings = []
-    if guard.arrs and not any(c["watched"] for c in categories):
+    if guard.arrs and not any(c["watched"] for c in categories if c["category"]):
         warnings.append("No qBittorrent categories are being watched yet, so nothing is checked. Fix the *arr "
                         "connections below, or fill in their categories.")
     if by["qBittorrent"].get("folders_ok") is False:

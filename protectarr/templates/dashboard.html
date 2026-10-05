@@ -18,7 +18,7 @@
 </section>{% endif %}
 {% if watched %}<section class="panel" id="p-watched" hidden>
   <div class="panel-head"><b>Watched categories</b><span><a href="/settings" class="muted">Change in Settings</a><button type="button" class="x" aria-label="Close">×</button></span></div>
-  <table class="stack">{% for c in watched %}<tr><td><code>{{ c.category }}</code></td><td class="muted">checked as {{ c.profile }}</td><td class="muted">from {{ c.source }}</td></tr>{% endfor %}</table>
+  <table class="stack">{% for c in watched %}<tr><td>{% if c.category %}<code>{{ c.category }}</code>{% else %}no category{% endif %}</td><td class="muted">checked as {{ c.profile }}</td><td class="muted">from {{ c.source }}</td></tr>{% endfor %}</table>
 </section>{% endif %}
 <script>
   // One panel at a time; clicking its card again or × closes it.

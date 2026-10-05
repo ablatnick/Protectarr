@@ -163,6 +163,38 @@ async def test_other_categories_ignored(env):
     assert guard.store.torrent("eee") is None
 
 
+async def test_uncategorized_torrent_added_by_hand_is_checked(env):
+    guard, qb, _, _ = env
+    qb.add("unc", "Movie.2026.1080p", [("Movie.2026.1080p.mkv.exe", 900 * MB)], category="")
+    await guard.poll()
+    assert guard.store.is_blocked("unc")
+    assert qb.called("/torrents/delete") == [{"hashes": "unc", "deleteFiles": "true"}]
+
+
+async def test_uncategorized_torrents_from_before_it_was_turned_on_are_left_alone(env):
+    guard, qb, _, _ = env
+    qb.add("old", "Old.Download", [("Old.Download/setup.exe", 1 * MB)], category="")
+    qb.torrents["old"]["added_on"] = int(guard.uncategorized_since) - 3600
+    await guard.poll()
+    assert guard.store.torrent("old") is None and not qb.called("/torrents/delete")
+
+
+async def test_uncategorized_ignored_when_turned_off(env):
+    guard, qb, _, _ = env
+    guard.set_watch_uncategorized(False)
+    qb.add("off", "Some.Game", [("setup.exe", 1 * MB)], category="")
+    await guard.poll()
+    assert guard.store.torrent("off") is None
+    assert guard.store.get_setting("uncategorized_since") is None
+
+
+def test_watch_uncategorized_settings():
+    from protectarr.config import from_env
+    assert from_dict({}).qbittorrent.watch_uncategorized
+    assert not from_dict({"qbittorrent": {"watch_uncategorized": False}}).qbittorrent.watch_uncategorized
+    assert not from_env({"QBIT_WATCH_UNCATEGORIZED": "false"}).qbittorrent.watch_uncategorized
+
+
 async def test_first_run_leaves_finished_torrents_alone(env):
     guard, qb, _, _ = env
     qb.add("fff", "Old.Show", [("Old.Show/setup.exe", 1 * MB)], state="stalledUP", progress=1.0)

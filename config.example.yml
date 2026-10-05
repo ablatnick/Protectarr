@@ -8,6 +8,8 @@ qbittorrent:
   password: ${QBIT_PASSWORD}
   # Leave empty to check the categories your *arr apps use (read from their download client settings).
   categories: []
+  # Also check torrents with no category (a magnet link you add yourself). Only ones added after it's turned on.
+  watch_uncategorized: true
   # If qBittorrent's "Torrent stop condition" is "Metadata received", Protectarr starts each torrent
   # once its file list passes. Nothing downloads before it's checked.
   resume_after_metadata_check: true

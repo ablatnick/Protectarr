@@ -87,14 +87,33 @@ def test_allowed_file_types_api(env):  # noqa: F811
     guard, _, _, _ = env
     guard.cfg.api_key = "tok"
     client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers={"Authorization": "Bearer tok"})
-    assert client.get("/api/rules").json() == {"allowed_extensions": [], "history_days": 90}
+    assert client.get("/api/rules").json() == {"allowed_extensions": [], "history_days": 90,
+                                               "watch_uncategorized": True}
     assert client.post("/api/rules", json={"allowed_extensions": ["MKA"]}).json()["allowed_extensions"] == [".mka"]
     assert client.post("/api/rules", json={"history_days": 30}).json() == {"allowed_extensions": [".mka"],
-                                                                         "history_days": 30}
+                                                                         "history_days": 30,
+                                                                         "watch_uncategorized": True}
+    assert client.post("/api/rules", json={"watch_uncategorized": "no"}).status_code == 400
     assert client.post("/api/rules", json={"history_days": -1}).status_code == 400
     assert client.post("/api/rules", json={"history_days": "7"}).status_code == 400
     assert client.post("/api/rules", json={"allowed_extensions": "mka"}).status_code == 400
     assert client.post("/api/rules", json=["x"]).status_code == 400
+
+
+def test_uncategorized_toggle_on_settings_page(env):  # noqa: F811
+    guard, _, _, _ = env
+    client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
+    assert "no category" in client.get("/settings").text
+    since = guard.uncategorized_since
+    assert since is not None and guard.watched("")
+
+    client.post("/settings/uncategorized", data={})
+    assert not guard.watched("") and guard.uncategorized_since is None
+    assert guard.store.get_setting("rules")["watch_uncategorized"] is False
+    assert "no category</span>" not in client.get("/settings").text
+
+    client.post("/settings/uncategorized", data={"watch_uncategorized": "on"})
+    assert guard.watched("") and guard.uncategorized_since >= since
 
 
 def test_allowed_file_types_from_config_and_env():

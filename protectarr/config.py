@@ -33,6 +33,9 @@ class QbitConfig:
     # Only torrents in these categories are checked. Empty means the categories your *arr apps use,
     # read from their download client settings (or every torrent when no *arr app is configured).
     categories: list[str] = field(default_factory=list)
+    # Also check torrents with no category: ones you add yourself (a pasted magnet link, a .torrent file).
+    # Only torrents added after this was turned on; the ones already in qBittorrent are left alone.
+    watch_uncategorized: bool = True
     # Resume torrents that qBittorrent stopped after "Metadata received" once they pass.
     resume_after_metadata_check: bool = True
     # qBittorrent's stop condition applies to every torrent, so also start new torrents in categories
@@ -260,6 +263,8 @@ def from_env(env: dict[str, str] | None = None) -> Config:
     q.username = g("QBIT_USERNAME", q.username)
     q.password = env.get("QBIT_PASSWORD", "")
     q.categories = _list(g("QBIT_CATEGORIES"))
+    if "QBIT_WATCH_UNCATEGORIZED" in env:
+        q.watch_uncategorized = _bool(env["QBIT_WATCH_UNCATEGORIZED"])
     if "QBIT_RESUME_AFTER_CHECK" in env:
         q.resume_after_metadata_check = _bool(env["QBIT_RESUME_AFTER_CHECK"])
     if "QBIT_RESUME_OTHER_CATEGORIES" in env:
@@ -385,7 +390,8 @@ def _apply_connections(cfg: Config, data: dict) -> Config:
 # ----- rules edited in the web UI -------------------------------------------------------------------------
 
 def rules_of(cfg: Config) -> dict:
-    return {"allowed_extensions": list(cfg.rules.allowed_extensions), "history_days": cfg.history_days}
+    return {"allowed_extensions": list(cfg.rules.allowed_extensions), "history_days": cfg.history_days,
+            "watch_uncategorized": cfg.qbittorrent.watch_uncategorized}
 
 
 def apply_rules(cfg: Config, data: dict) -> Config:
@@ -398,6 +404,10 @@ def apply_rules(cfg: Config, data: dict) -> Config:
         cfg.rules.allowed_extensions = normalize_extensions(data["allowed_extensions"])
     if "history_days" in data:
         cfg.history_days = data["history_days"]
+    if "watch_uncategorized" in data:
+        if not isinstance(data["watch_uncategorized"], bool):
+            raise ValueError("malformed rules: 'watch_uncategorized' must be true or false")
+        cfg.qbittorrent.watch_uncategorized = data["watch_uncategorized"]
     _validate(cfg)
     return cfg
 

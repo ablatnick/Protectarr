@@ -187,6 +187,7 @@ If you'd rather use a file, copy [`config.example.yml`](config.example.yml) to `
 | `QBIT_RESUME_AFTER_CHECK` | `true` | Start torrents that qBittorrent's stop condition held once their file list passes |
 | `QBIT_RESUME_OTHER_CATEGORIES` | `true` | Start new torrents in other categories that qBittorrent's stop condition held (only ones added in the last 2 minutes, or while Protectarr was down) |
 | `QBIT_CATEGORIES` | empty | Check only these categories instead of the ones read from the *arr apps |
+| `QBIT_WATCH_UNCATEGORIZED` | `true` | Also check torrents with no category, such as a magnet link you paste into qBittorrent yourself. Only torrents added after it's turned on. Also on the Settings page |
 | `<APP>_URL`, `<APP>_API_KEY` | | `<APP>` is `SONARR`, `RADARR`, `LIDARR` or `READARR`, optionally with a suffix (`RADARR_4K_URL`) |
 | `<APP>_CATEGORIES` | empty | Categories for that app, if it can't be read from its settings |
 | `PROWLARR_URL`, `PROWLARR_API_KEY` | empty | |

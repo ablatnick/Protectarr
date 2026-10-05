@@ -2,6 +2,8 @@
 
 ## 0.4.0
 
+- **Torrents you add yourself:** a magnet link or .torrent added straight into qBittorrent usually has no category, so it used to skip every check. Torrents with no category are now checked too (as a TV download unless `CATEGORY_PROFILES` says otherwise). Only torrents added after this is turned on are checked, so finished downloads already in qBittorrent are left alone. Turn it off under Settings > Watched qBittorrent categories, or with `QBIT_WATCH_UNCATEGORIZED=false` / `qbittorrent.watch_uncategorized`.
+
 - **Dashboard details:** click the Blocked recently or Watched categories card to open a panel under the cards listing which releases were blocked (with when and why) or which categories are watched (with their profile), not just how many.
 
 - **Activity history:** the Activity page pages back through older results (100 per page, also `GET /api/events?before=<id>`). Clean results older than 90 days are removed every 6 hours; change it under Settings > Activity history (or `HISTORY_DAYS` / `history_days`, `0` keeps everything). Blocked, held and denied results are always kept, so the Indexers page counts don't change.

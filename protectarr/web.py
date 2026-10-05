@@ -285,13 +285,15 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
     @app.get("/settings", response_class=HTMLResponse)
     async def settings_page(request: Request, saved: int = 0, error: str = "", login_error: str = "",
                             login_saved: int = 0, token_saved: int = 0, rules_saved: int = 0, rules_error: str = "",
-                            history_saved: int = 0, history_error: str = ""):
+                            history_saved: int = 0, history_error: str = "", uncategorized_saved: int = 0):
         status = await run_checks(guard)
         login = logins.get()
         return page(request, "settings.html", status=status, by_name={x["name"]: x for x in status["services"]},
                     conn=connections_of(guard.cfg), kinds=list(ARR_KINDS), hook_base=_hook_base(request),
                     saved=saved, error=error, rules_saved=rules_saved, rules_error=rules_error,
                     history_saved=history_saved, history_error=history_error, history_days=guard.cfg.history_days,
+                    uncategorized_saved=uncategorized_saved,
+                    watch_uncategorized=guard.cfg.qbittorrent.watch_uncategorized,
                     allowed_extensions=guard.cfg.rules.allowed_extensions, allowed_programs=_programs(guard.cfg),
                     login_error=login_error, login_saved=login_saved, token_saved=token_saved, login_user=(login or {}).get("username", ""),
                     login_generated=logins.generated, env_key=bool(cfg.api_key), hook_key=logins.token("hook_key"),
@@ -350,6 +352,12 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
             return RedirectResponse(f"/settings?history_error={_quote(str(exc))}#history", status_code=303)
         return RedirectResponse("/settings?history_saved=1#history", status_code=303)
 
+    @app.post("/settings/uncategorized")
+    async def settings_uncategorized(request: Request):
+        form = {k: v[-1] for k, v in parse_qs((await request.body()).decode(), keep_blank_values=True).items()}
+        _save_rules({"watch_uncategorized": form.get("watch_uncategorized") == "on"})
+        return RedirectResponse("/settings?uncategorized_saved=1#categories", status_code=303)
+
     @app.get("/api/rules")
     async def rules_api():
         return rules_of(guard.cfg)
@@ -369,6 +377,7 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
         apply_rules(copy.deepcopy(guard.cfg), merged)  # validate before touching the live settings
         apply_rules(guard.cfg, merged)
         guard.scanner.allowed_extensions = set(guard.cfg.rules.allowed_extensions)
+        guard.set_watch_uncategorized(guard.cfg.qbittorrent.watch_uncategorized)
         guard.store.set_setting("rules", rules_of(guard.cfg))
         if "allowed_extensions" in submitted:
             log.info("allowed file types changed on the Settings page: %s",
@@ -377,6 +386,9 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
             log.info("activity history: keeping clean results %s", f"{guard.cfg.history_days} days"
                      if guard.cfg.history_days else "forever")
             guard.prune_history()
+        if "watch_uncategorized" in submitted:
+            log.info("torrents with no category: %s", "checked from now on" if guard.cfg.qbittorrent.watch_uncategorized
+                     else "not checked")
         if "allowed_extensions" in submitted and _programs(guard.cfg):
             log.warning("program file types are allowed (%s): only ClamAV now checks them",
                         ", ".join(_programs(guard.cfg)))
