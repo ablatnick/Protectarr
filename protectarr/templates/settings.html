@@ -105,7 +105,7 @@
 {% if uncategorized_saved %}<div class="flash ok">Saved.</div>{% endif %}
 <form method="post" action="/settings/uncategorized" autocomplete="off">
 <fieldset><legend>Torrents you add yourself</legend>
-  <label><input type="checkbox" name="watch_uncategorized"{% if watch_uncategorized %} checked{% endif %}> Also check torrents with no category</label>
+  <label class="check"><input type="checkbox" name="watch_uncategorized"{% if watch_uncategorized %} checked{% endif %}> Also check torrents with no category</label>
   <p class="muted">A magnet link or .torrent file you add in qBittorrent yourself usually has no category, so no *arr app's category covers it. With this on, it gets the same checks as everything else (as a TV download, unless <code>CATEGORY_PROFILES</code> says otherwise). Something that isn't video, like a game or a Linux ISO, will be held for you on the Review page. Only torrents added after you turn this on are checked; the ones already in qBittorrent are left alone.</p>
   <p style="margin-bottom:0"><button class="primary" type="submit">Save</button></p>
 </fieldset>
