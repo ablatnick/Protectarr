@@ -37,6 +37,12 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 templates.env.filters["ago"] = lambda ts: _ago(ts)
 
 
+# No other site may frame these pages (clickjacking a click on Allow or Restore), guess content types or see
+# Protectarr's URLs in a Referer header.
+SECURITY_HEADERS = {"X-Frame-Options": "DENY", "Content-Security-Policy": "frame-ancestors 'none'",
+                    "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer"}
+
+
 def _ago(ts: float) -> str:
     s = int(time.time() - ts)
     for unit, n in (("d", 86400), ("h", 3600), ("m", 60)):
@@ -172,6 +178,11 @@ def create_app(cfg: Config, guard: Guard | None = None, start_worker: bool = Tru
 
     @app.middleware("http")
     async def guard_requests(request: Request, call_next):
+        response = await _checked(request, call_next)
+        response.headers.update(SECURITY_HEADERS)
+        return response
+
+    async def _checked(request: Request, call_next):
         address = request.client.host if request.client else ""
         if request.url.path != "/health":
             given = _credentials_given(request)  # not just a browser's first, credential-less request

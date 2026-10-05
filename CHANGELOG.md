@@ -2,7 +2,7 @@
 
 ## 0.4.0
 
-- **Torrents you add yourself:** a magnet link or .torrent added straight into qBittorrent usually has no category, so it used to skip every check. Torrents with no category are now checked too (as a TV download unless `CATEGORY_PROFILES` says otherwise). Only torrents added after this is turned on are checked, so finished downloads already in qBittorrent are left alone. Turn it off under Settings > Watched qBittorrent categories, or with `QBIT_WATCH_UNCATEGORIZED=false` / `qbittorrent.watch_uncategorized`.
+- **Torrents you add yourself:** a magnet link or .torrent added straight into qBittorrent usually has no category, so it used to skip every check. Torrents with no category are now checked too, once an *arr app is connected (as a TV download unless `CATEGORY_PROFILES` says otherwise). Only torrents added after this is turned on are checked, so finished downloads already in qBittorrent are left alone. Turn it off under Settings > Watched qBittorrent categories, or with `QBIT_WATCH_UNCATEGORIZED=false` / `qbittorrent.watch_uncategorized`.
 
 - **Dashboard details:** click the Blocked recently or Watched categories card to open a panel under the cards listing which releases were blocked (with when and why) or which categories are watched (with their profile), not just how many.
 
@@ -18,6 +18,8 @@
   - Older setups keep working: a saved login, the old hook key, and hooks passing `PROTECTARR_API_KEY` as `?key=` (with a warning in the log).
 
 - **Non-root image:** the Docker image runs as `1000:1000` by default; set `user:` to qBittorrent's `PUID:PGID` as before.
+
+- **No framing:** every page sends `X-Frame-Options: DENY` and `Content-Security-Policy: frame-ancestors 'none'`, so another site can't load Protectarr in a hidden frame and trick a click on Allow or Restore. Dashboards can still link to it, but can no longer embed it in an iframe.
 
 - **Clear first-start error:** if the config folder isn't writable (for example because Docker created it as root), Protectarr now says so and how to fix it, instead of crashing with a database error. The Quick start now creates the folders first.
 

@@ -290,9 +290,9 @@ def blank(tmp_path, monkeypatch):
     return guard, fakes
 
 
-def test_fresh_install_watches_only_uncategorized_until_an_arr_app_is_added(blank):
+def test_fresh_install_watches_nothing_until_an_arr_app_is_added(blank):
     guard, _ = blank
-    assert not guard.watched("tv-sonarr") and guard.watched("")
+    assert not guard.watched("tv-sonarr") and not guard.watched("")
     client = TestClient(create_app(guard.cfg, guard, start_worker=False), headers=DEFAULT_LOGIN)
     page = client.get("/settings").text
     assert "Getting started" in page and "Not set up" in page and "Problem" not in page

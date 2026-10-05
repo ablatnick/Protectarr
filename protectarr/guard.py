@@ -119,7 +119,8 @@ class Guard:
 
     def watched(self, category: str) -> bool:
         if not category:
-            return self.cfg.qbittorrent.watch_uncategorized
+            # Like everything else, torrents added by hand wait until an *arr app (or explicit category) is set up.
+            return self.cfg.qbittorrent.watch_uncategorized and bool(self.arrs or self.cfg.qbittorrent.categories)
         explicit = self.cfg.qbittorrent.categories
         if explicit:
             return category in explicit
@@ -157,7 +158,7 @@ class Guard:
             source = ("config" if cat in self.cfg.qbittorrent.categories
                       else self.discovered.get(cat, {}).get("source", "config"))
             rows.append({"category": cat, "profile": self.profile(cat), "source": source, "watched": self.watched(cat)})
-        if self.cfg.qbittorrent.watch_uncategorized:
+        if self.watched(""):
             rows.append({"category": "", "profile": self.profile(""), "source": "added by you", "watched": True})
         return rows
 

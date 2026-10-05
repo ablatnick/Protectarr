@@ -198,3 +198,12 @@ def test_wrong_tokens_count_as_failed_logins(env):  # noqa: F811
     c = client_for(guard)
     codes = [c.get("/api/events", headers={"Authorization": f"Bearer guess{i}"}).status_code for i in range(11)]
     assert codes[:10] == [401] * 10 and codes[10] == 429
+
+
+def test_pages_cannot_be_framed_by_other_sites(env):  # noqa: F811
+    guard, _, _, _ = env
+    c = client_for(guard)
+    for r in (c.get("/"), c.get("/", auth=FIRST), c.get("/health")):
+        assert r.headers["X-Frame-Options"] == "DENY"
+        assert r.headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+        assert r.headers["X-Content-Type-Options"] == "nosniff"
