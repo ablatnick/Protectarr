@@ -19,7 +19,7 @@ It's aimed at the fake releases that turn up on public indexers: a "new episode"
 - WMV/ASF "codec" bait
 - videos far too small for what they claim to be (an episode under 30 MB, a movie under 300 MB)
 
-**While it downloads, and before import.** Protectarr reads each file's first bytes as soon as they arrive to find its real type, so a Windows program renamed `.mkv` is caught. It lists archives without extracting them (and flags password-protected ones), and sends every non-media file to ClamAV.
+**While it downloads, and before import.** Protectarr reads each file's first bytes as soon as they arrive to find its real type, so a Windows program renamed `.mkv` is caught. It lists archives without extracting them (and flags password protected ones), and sends every non media file to ClamAV.
 
 Each *arr app gets rules that fit what it downloads. Lidarr releases may contain `.cue`, `.log` and booklet PDFs, and Readarr releases may contain EPUB, PDF and audiobook files, so neither is mistaken for a fake video.
 
