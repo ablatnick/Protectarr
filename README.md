@@ -2,7 +2,7 @@
 
 # Protectarr
 
-Scared to torrent due to security risks? Worry no more (or at least worry less)! Protectarr sits between your machine and torrent downloads to add another layer of protection against suspicious or malicious releases. Claude was used to create a majority of this application. After a recent scare in my own *arr stack, where suspicious files were downloaded onto my homelab, I felt the sooner something like this existed, the better.
+Scared to torrent due to security risks? Worry no more (or at least worry less)! Protectarr sits between your machine and torrent downloads to add another layer of protection against suspicious or malicious releases. Huge shutout to Claude for helping where my coding skills are lacking . After a recent scare in my own *arr stack, where suspicious files were downloaded onto my homelab, I felt the sooner something like this existed, the better.
 
 This project is completely open source, so feel free to make changes, contribute, or create your own version. In a world where everything seems to require a subscription, owning and managing your own media is becoming increasingly difficult. I hope Protectarr helps make homelabbing and self-hosting your own media a little safer and gives people some extra peace of mind.
 
