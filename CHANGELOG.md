@@ -19,6 +19,8 @@
 
 - **Non-root image:** the Docker image runs as `1000:1000` by default; set `user:` to qBittorrent's `PUID:PGID` as before.
 
+- **Clear first-start error:** if the config folder isn't writable (for example because Docker created it as root), Protectarr now says so and how to fix it, instead of crashing with a database error. The Quick start now creates the folders first.
+
 - **Logo:** the pixel-art blue shield (`docs/logo.png`) is Protectarr's logo, in the README and as the web UI's header icon and favicon.
 
 - **Architecture diagrams:** the README has a stack diagram, and [`docs/architecture.md`](docs/architecture.md) walks through a download and the credentials.

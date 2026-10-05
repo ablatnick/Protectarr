@@ -408,3 +408,16 @@ def test_settings_api_rejects_malformed_input(stack, body):
                    raise_server_exceptions=False)
     r = c.post("/api/settings", content=body, headers={"content-type": "application/json"})
     assert r.status_code == 400, f"{body} -> {r.status_code}"
+
+
+def test_unwritable_data_folder_stops_with_a_clear_message(tmp_path, monkeypatch, caplog):
+    import protectarr.__main__ as entry
+    from protectarr.config import from_dict
+    cfg = from_dict({})
+    cfg.data_dir = str(tmp_path)
+    monkeypatch.setattr(entry.config, "load", lambda: cfg)
+    monkeypatch.setattr(entry.os, "access", lambda path, mode: False)
+    monkeypatch.setattr(entry.uvicorn, "run", lambda *a, **k: pytest.fail("started anyway"))
+    with pytest.raises(SystemExit):
+        entry.main()
+    assert "mkdir -p protectarr/config protectarr/quarantine" in caplog.text

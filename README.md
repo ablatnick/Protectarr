@@ -46,6 +46,7 @@ Protectarr is a single container. You run qBittorrent (4.5 or later, 5.x recomme
 1. **Start Protectarr** with [`docker-compose.yml`](docker-compose.yml), or:
 
    ```
+   mkdir -p protectarr/config protectarr/quarantine
    docker run -d --name protectarr -p 9797:9797 --user 1000:1000 \
      -v ./protectarr/config:/config -v ./protectarr/quarantine:/quarantine \
      -v /path/to/downloads:/downloads \
@@ -54,7 +55,8 @@ Protectarr is a single container. You run qBittorrent (4.5 or later, 5.x recomme
 
    **Your login:** on first start Protectarr generates a password for the user `admin` and prints it once in the container log (`docker logs protectarr`). Set your own on the Settings page straight away. To choose it up front instead, set `PROTECTARR_PASSWORD` (and optionally `PROTECTARR_USERNAME`) before the first start.
 
-   Two things matter:
+   Three things matter:
+   - Create the `config` and `quarantine` folders yourself first, as above. If Docker creates them, they belong to root and Protectarr can't write to them.
    - `--user` must match qBittorrent's `PUID:PGID`, so Protectarr can move files into quarantine.
    - Mount your downloads folder at **the same path qBittorrent uses** (for example `/downloads` or `/data`).
 

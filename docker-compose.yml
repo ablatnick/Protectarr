@@ -1,5 +1,7 @@
 # Protectarr on its own. Run qBittorrent, your *arr apps and ClamAV however you already do, then open
 # http://your-server:9797/settings and enter the address (URL and port) and API key of each one.
+# Before the first start, create the folders yourself (mkdir -p protectarr/config protectarr/quarantine):
+# folders Docker creates belong to root, and Protectarr (not root) can't write to them.
 
 services:
   protectarr:
