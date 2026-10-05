@@ -149,15 +149,15 @@ Protectarr works alongside these. None are required except qBittorrent and at le
 `http://your-server:9797`. Log in with your username and password (see **Logins and tokens** below). Repeated wrong passwords make an address wait a few minutes.
 
 - **Activity:** every check, with the reasons and the indexer.
-  <img width="1102" height="1319" alt="Screenshot From 2026-09-30 19-07-30" src="https://github.com/user-attachments/assets/db3450ca-ec87-44fb-8516-c24fc6d352b4" />
+
 - **Review:** held downloads waiting for Allow or Deny.
-  <img width="1319" height="422" alt="Screenshot From 2026-09-30 19-07-43" src="https://github.com/user-attachments/assets/be8148e0-dcdc-47a3-a43b-909b5cd78ebf" />
+
 - **Quarantine:** blocked files, which you can restore or delete.
-  <img width="1347" height="497" alt="Screenshot From 2026-09-30 19-07-53" src="https://github.com/user-attachments/assets/cd979888-0f37-44ab-91ca-d22dd0258c2b" />
+
 - **Indexers:** which indexers sent bad releases.
-  <img width="1332" height="424" alt="Screenshot From 2026-09-30 19-08-03" src="https://github.com/user-attachments/assets/b9cd48d6-bbae-46dc-9f1d-57876357ce0a" />
+
 - **Settings:** the address and key of every service, their live status with setup hints, and the categories being watched.
-  <img width="940" height="1321" alt="Screenshot From 2026-09-30 19-08-32" src="https://github.com/user-attachments/assets/8077e42f-2f62-4688-a399-b5a9bad738af" />
+
 ### Logins and tokens
 
 Protectarr has three separate credentials, so a leaked one only opens what it's for:
